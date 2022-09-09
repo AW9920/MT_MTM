@@ -112,8 +112,13 @@ int HallL;
   float angle_res = (float)FSR / (float)bit_res;*/
 
 //orientation/motion vars
-Quaternion qR, qL;  // [w, x, y, z]         quaternion container
+//Quaternion array --> q = [w, x, y, z]
+Quaternion qR, qL;        //current raw quaternion container; left / right IMU
+Quaternion qxn1R, qxn1L;  //previous raw value; left / right IMU
+Quaternion qyn1R, qyn1L;  //previous filtered value; left / right IMU
 Quaternion *q[2] = { &qR, &qL };
+Quaternion *qxn1[2] = { &qxn1R, &qxn1L };
+Quaternion *qyn1[2] = { &qyn1R, &qyn1L };
 unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
 unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
 unsigned int *EncDataR[3] = { &Enc1R, &Enc2R, &Enc3R };  //Pointer Array Right Encoders declaration
@@ -127,12 +132,6 @@ unsigned int ADDR[2] = {
   ADL   //Left IMU index 1
 };
 
-//Digital low pass filter variables
-Quaternion qxn1L = 0;  //previous raw value; left IMU
-Quaternion qyn1L = 0;  //previous filtered value; left IMU
-Quaternion qxn1R = 0;  //previous raw value; right IMU
-Quaternion qyn1R = 0;  //previous filtered value; right IMU
-
 //[Shoulder_P, Shoulder_Y, Elbow]
 //=======================================================
 //======            FUNCTION DECLARATION          =======
@@ -141,10 +140,10 @@ Quaternion qyn1R = 0;  //previous filtered value; right IMU
 void setupIMU(unsigned int AD);
 void readEncoder(unsigned int *OutData, unsigned int DO, int CSn, unsigned int CLK, int i);
 void readIMU(Quaternion *q, int i);
-void LPFilter(float);
+Quaternion LPFilter(Quaternion *qxn, Quaternion *qxn1, Quaternion *qyn1);
 
-  //Other variables
-  unsigned long currentTime;
+//Other variables
+unsigned long currentTime;
 unsigned long samplingTime;
 
 //=======================================================
@@ -213,16 +212,6 @@ void setup() {
     }
     setupIMU(ADDR[i]);
   }
-
-
-  test();
-}
-
-void test(){
-
-  Serial.print(q
-while(1);
-
 }
 
 //=======================================================
@@ -262,14 +251,16 @@ void loop() {
   HallR = analogRead(HDOR);
   HallL = analogRead(HDOL);
 
+  //Filtering IMU data; Terminate outbreaks
+  for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+    *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+  }
+
   //Compute sampling time
   samplingTime = millis() - currentTime;
   //Output sampling Time
   Serial.print('Sampling Time:');
   Serial.println(samplingTime, 2);
-
-  //Filtering IMU data; Terminate outbreaks
-  /****Enter Code here****/
 
 #ifdef RUN
   // Right Arm Motion Data
