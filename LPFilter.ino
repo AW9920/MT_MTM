@@ -1,6 +1,6 @@
 Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   /*This function's purpose is to terminate high frequent outbreaks and further
-  smooth the acquired sensor data
+    smooth the acquired sensor data
     qyn  -- Filtered sensor data to compute
     qyn1 -- previous computed filtered sensor data
     qxn  -- current raw measured sensor data
@@ -9,13 +9,37 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   //=======================================================
   //======            FUNCTION Variables            =======
   //=======================================================
-    // Empty container for filtered quaterion
+  // Empty container for filtered quaterion
   Quaternion qyn;
-  
+
   // coefficients for constant coefficient differential equation
-  float a1 = 0;
-  float b0 = 0;
-  float b1 = 0;
+  /* Test 1
+    float a1 = 0.7285;
+    float b0 = 0.1358;
+    float b1 = 0.1358;
+  */
+
+  float a1 = 0.8945;
+  float b0 = 0.0528;
+  float b1 = 0.0528;
+
+  /*Test 3
+  float a1 = 0.9458;
+  float b0 = 0.0271;
+  float b1 = 0.0271;
+*/
+
+  /* Test 4
+    float a1 = 0.978;
+    float b0 = 0.011;
+    float b1 = 0.011;
+  */
+
+  /* Test 5
+    float a1 = 0.5218;
+    float b0 = 0.2391;
+    float b1 = 0.2391;
+  */
 
   // Apply filter on extracted measured data
   qyn.w = a1 * qyn1->w + b0 * qxn->w + b1 * qxn1->w;
@@ -26,6 +50,6 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   // Update containers for previous raw and filtered quaternions
   *qxn1 = *qxn;
   *qyn1 = qyn;
-  
+
   return qyn;
 }

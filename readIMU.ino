@@ -13,6 +13,13 @@ void readIMU(Quaternion *q, int i)
 
     //Read Quaternions from FIFOBuffer and store in variable q
     mpu.dmpGetQuaternion(q, fifoBuffer);
+
+    //Cap the quaternions received
+    q->w = constrain(q->w,-1,1);
+    q->x = constrain(q->x,-1,1);
+    q->y = constrain(q->y,-1,1);
+    q->z = constrain(q->z,-1,1);
+    
     #ifdef DEBUGGING
     if (i == ADL) {
       Serial.print(q->w, 4); Serial.print("/");   //Delimiter "/" to distinguish values of individual

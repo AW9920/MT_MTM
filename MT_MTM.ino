@@ -1,9 +1,9 @@
 //Define Arduino UNO CPU clock
 #define F_CPU 16000000L
 
-//Include Libraries
-#include "Uduino.h"  // Include Uduino library at the top of the sketch
-Uduino uduino("IMU");
+/*Include Libraries
+  #include "Uduino.h"  // Include Uduino library at the top of the sketch
+  Uduino uduino("IMU");*/
 
 //#include <avr/wdt.h>  //Watchdog Timer Library
 #include "I2Cdev.h"
@@ -256,12 +256,6 @@ void loop() {
     *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
   }
 
-  //Compute sampling time
-  samplingTime = millis() - currentTime;
-  //Output sampling Time
-  Serial.print('Sampling Time:');
-  Serial.println(samplingTime, 2);
-
 #ifdef RUN
   // Right Arm Motion Data
   Serial.print("r");
@@ -303,6 +297,13 @@ void loop() {
 #endif
 
 #ifdef EVAL
+  /*Compute sampling time
+    samplingTime = millis() - currentTime;
+    //Output sampling Time
+    Serial.print("Sampling Time:");
+    Serial.println(samplingTime);
+  */
+
   //Serial Plot
   Serial.print(qR.w, 4);
   Serial.print("\t");
@@ -312,14 +313,16 @@ void loop() {
   Serial.print("\t");
   Serial.print(qR.z, 4);
   Serial.print("\t");
-  //Serial.print(Enc1R);      //Shoulder Pitch
-  //Serial.print("\t");
-  //Serial.print(Enc2R);      //Elbow
-  //Serial.print("\t");
-  //Serial.print(Enc3R);      //Shoulder Yaw
-  //Serial.print("\t");
-  //Serial.print(HallR);
-  //Serial.print("\t");
+  /*
+    Serial.print(Enc1R);      //Shoulder Pitch
+    Serial.print("\t");
+    Serial.print(Enc2R);      //Elbow
+    Serial.print("\t");
+    Serial.print(Enc3R);      //Shoulder Yaw
+    Serial.print("\t");
+    Serial.print(HallR);
+    Serial.print("\t");
+  */
   Serial.print(qL.w, 4);
   Serial.print("\t");
   Serial.print(qL.x, 4);
@@ -328,12 +331,14 @@ void loop() {
   Serial.print("\t");
   Serial.print(qL.z, 4);
   Serial.println("\t");
-  //Serial.print(Enc1L);      //Shoulder Pitch
-  //Serial.print("\t");
-  //Serial.print(Enc2L);      //Elbow
-  //Serial.print("\t");
-  //Serial.print(Enc3L);      //Shoulder Yaw
-  //Serial.print("\t");
-  //Serial.println(HallL);
+  /*
+    Serial.print(Enc1L);      //Shoulder Pitch
+    Serial.print("\t");
+    Serial.print(Enc2L);      //Elbow
+    Serial.print("\t");
+    Serial.print(Enc3L);      //Shoulder Yaw
+    Serial.print("\t");
+    Serial.println(HallL);
+  */
 #endif
 }
