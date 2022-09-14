@@ -1,5 +1,4 @@
-void setupIMU(unsigned int AD)
-{
+void setupIMU(unsigned int AD) {
   //Initialize IMU Device
   // initialize Device
   mpu.initialize();
@@ -7,8 +6,7 @@ void setupIMU(unsigned int AD)
   devStatus = mpu.dmpInitialize();
 
   //Adjust Offset Values
-  if (AD == ADR)
-  {
+  if (AD == ADR) {
     mpu.setXAccelOffset(MPU6050R_ACCEL_OFFSET_X);
     mpu.setYAccelOffset(MPU6050R_ACCEL_OFFSET_Y);
     mpu.setZAccelOffset(MPU6050R_ACCEL_OFFSET_Z);
@@ -16,9 +14,8 @@ void setupIMU(unsigned int AD)
     mpu.setYGyroOffset(MPU6050R_GYRO_OFFSET_Y);
     mpu.setZGyroOffset(MPU6050R_GYRO_OFFSET_Z);
   }
-  
-  else if (AD == ADL)
-  {
+
+  else if (AD == ADL) {
     mpu.setXAccelOffset(MPU6050L_ACCEL_OFFSET_X);
     mpu.setYAccelOffset(MPU6050L_ACCEL_OFFSET_Y);
     mpu.setZAccelOffset(MPU6050L_ACCEL_OFFSET_Z);
@@ -27,7 +24,7 @@ void setupIMU(unsigned int AD)
     mpu.setZGyroOffset(MPU6050L_GYRO_OFFSET_Z);
   }
 
-  else{
+  else {
     return;
   }
 
@@ -44,6 +41,7 @@ void setupIMU(unsigned int AD)
     digitalWrite(RESET, LOW);
     delay(1);
     digitalWrite(RESET, HIGH);
-    while (1);
+    while (1)
+      ;
   }
 }

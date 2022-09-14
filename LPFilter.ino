@@ -9,9 +9,8 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   //=======================================================
   //======            FUNCTION Variables            =======
   //=======================================================
-  // Empty container for filtered quaterion
-  Quaternion qyn;
-
+  Quaternion qyn;      //Empty container for filtered quaterion
+  bool enable = true;  //Enabling LP Filter (Debugging)
   // coefficients for constant coefficient differential equation
   /* Test 1
     float a1 = 0.7285;
@@ -42,14 +41,20 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   */
 
   // Apply filter on extracted measured data
-  qyn.w = a1 * qyn1->w + b0 * qxn->w + b1 * qxn1->w;
-  qyn.x = a1 * qyn1->x + b0 * qxn->x + b1 * qxn1->x;
-  qyn.y = a1 * qyn1->y + b0 * qxn->y + b1 * qxn1->y;
-  qyn.z = a1 * qyn1->z + b0 * qxn->z + b1 * qxn1->z;
+  if (enable == true) {
+    qyn.w = a1 * qyn1->w + b0 * qxn->w + b1 * qxn1->w;
+    qyn.x = a1 * qyn1->x + b0 * qxn->x + b1 * qxn1->x;
+    qyn.y = a1 * qyn1->y + b0 * qxn->y + b1 * qxn1->y;
+    qyn.z = a1 * qyn1->z + b0 * qxn->z + b1 * qxn1->z;
 
-  // Update containers for previous raw and filtered quaternions
-  *qxn1 = *qxn;
-  *qyn1 = qyn;
+    // Update containers for previous raw and filtered quaternions
+    *qxn1 = *qxn;
+    *qyn1 = qyn;
+
+  } else {
+    //Return unfiltered values
+    qyn = *qxn;
+  }
 
   return qyn;
 }

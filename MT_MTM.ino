@@ -103,22 +103,24 @@ uint16_t packetSize;     // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;      // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64];  // FIFO storage buffer
 
-//Hall Sensor variables
-int HallR;
-int HallL;
-
 // Encoder control/status vars. Unity calculates true angle
 /*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
   float angle_res = (float)FSR / (float)bit_res;*/
 
 //orientation/motion vars
 //Quaternion array --> q = [w, x, y, z]
-Quaternion qR, qL;        //current raw quaternion container; left / right IMU
+Quaternion qR, qL;  //current raw quaternion container; left / right IMU
+Quaternion *q[2] = { &qR, &qL };
+//Variables for Low-Pass Filter
 Quaternion qxn1R, qxn1L;  //previous raw value; left / right IMU
 Quaternion qyn1R, qyn1L;  //previous filtered value; left / right IMU
-Quaternion *q[2] = { &qR, &qL };
 Quaternion *qxn1[2] = { &qxn1R, &qxn1L };
 Quaternion *qyn1[2] = { &qyn1R, &qyn1L };
+//Variables for spike detection
+Quaternion qsn1R, qsn1L;  //previous safe value; left / right IMU
+Quaternion *qsn1[2] = { &qsn1R, &qsn1L };
+int n = 0;  //subsequent spike counter
+//Variables for Encoder data
 unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
 unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
 unsigned int *EncDataR[3] = { &Enc1R, &Enc2R, &Enc3R };  //Pointer Array Right Encoders declaration
@@ -131,6 +133,9 @@ unsigned int ADDR[2] = {
   ADR,  //Right IMU index 0
   ADL   //Left IMU index 1
 };
+//Hall Sensor variables
+int HallR;
+int HallL;
 
 //[Shoulder_P, Shoulder_Y, Elbow]
 //=======================================================
@@ -232,7 +237,11 @@ void loop() {
     } else {
       return;
     }
+    //Acquire Data from IMU sensor
     readIMU(q[i], i);
+
+    //Spike Filter
+    spikeDetection(q[i], qsn1[1]);
   }
 
   //Get Encoder Data Right
