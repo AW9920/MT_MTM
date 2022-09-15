@@ -118,8 +118,15 @@ Quaternion *qxn1[2] = { &qxn1R, &qxn1L };
 Quaternion *qyn1[2] = { &qyn1R, &qyn1L };
 //Variables for spike detection
 Quaternion qsn1R, qsn1L;  //previous safe value; left / right IMU
+Quaternion qsnR, qsnL;    //current Filter output (Debugging)
 Quaternion *qsn1[2] = { &qsn1R, &qsn1L };
-int n = 0;  //subsequent spike counter
+Quaternion *qsn[2] = { &qsnR, &qsnL };  //(Debugging)
+Quaternion dqR, dqL;
+Quaternion dq[2] = { dqR, dqL };
+int cw, cx, cy, cz;
+int c[4] = { cw, cx, cy, cz };  //subsequent spike counter
+float dif_R[4], dif_L[4];
+float *dif[2] = { dif_R, dif_L };
 //Variables for Encoder data
 unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
 unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
@@ -146,6 +153,11 @@ void setupIMU(unsigned int AD);
 void readEncoder(unsigned int *OutData, unsigned int DO, int CSn, unsigned int CLK, int i);
 void readIMU(Quaternion *q, int i);
 Quaternion LPFilter(Quaternion *qxn, Quaternion *qxn1, Quaternion *qyn1);
+void spikeDetection(Quaternion *qxn, Quaternion *qyn1);
+void updateQuat(Quaternion *q, float *q_val);
+float *Quat2floatArr(Quaternion *q);
+void updateArray(float *arr1, float *arr2);
+void breakpoint(void);
 
 //Other variables
 unsigned long currentTime;
@@ -197,8 +209,7 @@ void setup() {
 #endif
   //Set Baudrate at 115200 Bps
   Serial.begin(115200);
-  while (!Serial)
-    ;  // wait for Leonardo enumeration, others continue immediately
+  while (!Serial) {};  // wait for Leonardo enumeration, others continue immediately
 
   //Setup IMUs
   //Serial.println(sizeof(q) / sizeof(unsigned int));
@@ -241,7 +252,7 @@ void loop() {
     readIMU(q[i], i);
 
     //Spike Filter
-    spikeDetection(q[i], qsn1[1]);
+    spikeDetection(q[i], qsn1[i], dif[i]);
   }
 
   //Get Encoder Data Right
@@ -253,7 +264,8 @@ void loop() {
   //Get Encoder Data Left
   for (unsigned int i = 0; i < sizeof(EncDataL) / sizeof(unsigned int); i++) {
     readEncoder(EncDataL[i], DataPinL[i], CSL[i], CLKL, i);  //Hand over Memory address of EncData and overwrite values
-    delayMicroseconds(1);                                    //Tcs waiting for another read in
+
+    delayMicroseconds(1);  //Tcs waiting for another read in
   }
 
   //Get Hall Sensor data
@@ -306,14 +318,16 @@ void loop() {
 #endif
 
 #ifdef EVAL
-  /*Compute sampling time
+  //*Compute sampling time
+  /*
     samplingTime = millis() - currentTime;
     //Output sampling Time
     Serial.print("Sampling Time:");
     Serial.println(samplingTime);
-  */
+*/
 
   //Serial Plot
+  //*IMU values of LEFT arm
   Serial.print(qR.w, 4);
   Serial.print("\t");
   Serial.print(qR.x, 4);
@@ -323,6 +337,16 @@ void loop() {
   Serial.print(qR.z, 4);
   Serial.print("\t");
   /*
+  Serial.print(qsnR.w, 4);
+  Serial.print("\t");
+  Serial.print(qsnR.x, 4);
+  Serial.print("\t");
+  Serial.print(qsnR.y, 4);
+  Serial.print("\t");
+  Serial.print(qsnR.z, 4);
+  Serial.println("\t");
+*/
+  /*Encoder values of RIGHT arm
     Serial.print(Enc1R);      //Shoulder Pitch
     Serial.print("\t");
     Serial.print(Enc2R);      //Elbow
@@ -332,6 +356,7 @@ void loop() {
     Serial.print(HallR);
     Serial.print("\t");
   */
+  //*IMU values of LEFT arm
   Serial.print(qL.w, 4);
   Serial.print("\t");
   Serial.print(qL.x, 4);
@@ -340,7 +365,8 @@ void loop() {
   Serial.print("\t");
   Serial.print(qL.z, 4);
   Serial.println("\t");
-  /*
+
+  /*Encoder values of LEFT arm
     Serial.print(Enc1L);      //Shoulder Pitch
     Serial.print("\t");
     Serial.print(Enc2L);      //Elbow
@@ -349,5 +375,85 @@ void loop() {
     Serial.print("\t");
     Serial.println(HallL);
   */
+
+  //Difference between raw value and last save value
+  /*
+  Serial.print(dqR.w, 4);
+  Serial.print("\t");
+  Serial.print(dqR.x, 4);
+  Serial.print("\t");
+  Serial.print(dqR.y, 4);
+  Serial.print("\t");
+  Serial.print(dqR.z, 4);
+  Serial.print("\t");
+
+  Serial.print(dqL.w, 4);
+  Serial.print("\t");
+  Serial.print(dqL.x, 4);
+  Serial.print("\t");
+  Serial.print(dqL.y, 4);
+  Serial.print("\t");
+  Serial.print(dqL.z, 4);
+  Serial.println("\t");
+*/
+  /*
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 4; j++) {
+      Serial.print(dif[i][j], 4);
+      Serial.print("\t");
+    }
+  }
+  Serial.println();
+*/
+  /*
+  Serial.print(dqR.w, 4);
+  Serial.print("\t");
+  Serial.print(dqR.x, 4);
+  Serial.print("\t");
+  Serial.print(dqR.y, 4);
+  Serial.print("\t");
+  Serial.print(dqR.z, 4);
+  Serial.print("\t");
+
+  Serial.print(dqL.w, 4);
+  Serial.print("\t");
+  Serial.print(dqL.x, 4);
+  Serial.print("\t");
+  Serial.print(dqL.y, 4);
+  Serial.print("\t");
+  Serial.print(dqL.z, 4);
+  Serial.println("\t");
+  */
+
 #endif
+}
+
+void updateQuat(Quaternion *q, float *q_val) {
+  q->w = q_val[0];
+  q->x = q_val[1];
+  q->y = q_val[2];
+  q->z = q_val[3];
+  return;
+}
+
+float *Quat2floatArr(Quaternion *q) {
+  static float Q_f[4] = {
+    q->w,
+    q->x,
+    q->y,
+    q->z
+  };
+  return Q_f;
+}
+
+void updateArray(float *arr1, float *arr2) {
+  for (int i = 0; i < sizeof(*arr1); i++) {
+    arr1[i] = arr2[i];
+  }
+}
+
+void breakpoint(void) {
+  Serial.println();
+  Serial.print("Debugger Breakpoint!");
+  while (true) {}
 }

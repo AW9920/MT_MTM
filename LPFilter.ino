@@ -5,6 +5,9 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
     qyn1 -- previous computed filtered sensor data
     qxn  -- current raw measured sensor data
     qxn1 -- previous measured raw sensor data
+
+    NOTE: The coefficients for Test2 and Test3 are looking the best. 
+    Best results might lie in between both.
   */
   //=======================================================
   //======            FUNCTION Variables            =======
@@ -17,16 +20,15 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
     float b0 = 0.1358;
     float b1 = 0.1358;
   */
-
+  /*Test 2 (fg = 100Hz)
   float a1 = 0.8945;
   float b0 = 0.0528;
   float b1 = 0.0528;
-
-  /*Test 3
+*/
+  //Test 3 (fg)
   float a1 = 0.9458;
   float b0 = 0.0271;
   float b1 = 0.0271;
-*/
 
   /* Test 4
     float a1 = 0.978;
@@ -40,6 +42,12 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
     float b1 = 0.2391;
   */
 
+  //Test 6 (fg=14.286 Hz)
+  /*
+    float a1 = 0.906;
+    float b0 = 0.047;
+    float b1 = 0.047;
+*/
   // Apply filter on extracted measured data
   if (enable == true) {
     qyn.w = a1 * qyn1->w + b0 * qxn->w + b1 * qxn1->w;
