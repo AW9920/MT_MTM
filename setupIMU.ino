@@ -41,7 +41,13 @@ void setupIMU(unsigned int AD) {
     digitalWrite(RESET, LOW);
     delay(1);
     digitalWrite(RESET, HIGH);
-    while (1)
-      ;
+    while (1);
   }
 }
+/*
+if (!dmpReady) {
+  Serial.println(dmpReady);
+  Serial.println("IMU not connected.");
+  delay(10);
+  return;
+}*/

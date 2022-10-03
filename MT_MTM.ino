@@ -1,15 +1,16 @@
 //Define Arduino UNO CPU clock
 #define F_CPU 16000000L
 
-/*Include Libraries
-  #include "Uduino.h"  // Include Uduino library at the top of the sketch
-  Uduino uduino("IMU");*/
+//Include Libraries
+/*#include "Uduino.h"  // Include Uduino library at the top of the sketch
+Uduino uduino("MTM");*/
 
 //#include <avr/wdt.h>  //Watchdog Timer Library
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include <stdfix.h>
 #include <math.h>
+
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
 #include "Wire.h"
@@ -18,9 +19,9 @@
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-//#define RUN
+#define RUN
 //#define DEBUG
-#define EVAL
+//#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -97,7 +98,8 @@ unsigned int const delay_500ns = 8;
 //======             GLOBAL VARIABLES             =======
 //=======================================================
 // MPU control/status vars
-bool dmpReady;           // set true if DMP init was successful
+bool dmpReady;  // set true if DMP init was successful
+bool IMUready;
 uint8_t devStatus;       // return status after each device operation (0 = success, !0 = error)
 uint16_t packetSize;     // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;      // count of all bytes currently in FIFO
@@ -158,6 +160,7 @@ void updateQuat(Quaternion *q, float *q_val);
 float *Quat2floatArr(Quaternion *q);
 void updateArray(float *arr1, float *arr2);
 void breakpoint(void);
+void WarmUpIMU(void);
 
 //Other variables
 unsigned long currentTime;
@@ -209,12 +212,14 @@ void setup() {
 #endif
   //Set Baudrate at 115200 Bps
   Serial.begin(115200);
-  while (!Serial) {};  // wait for Leonardo enumeration, others continue immediately
-
+  while (!Serial)
+    ;  // wait for Leonardo enumeration, others continue immediately
+  /*while (!uduino.isConnected()) {
+    uduino.update(); // Wait for Uduino to connect; Before anything is serial plotted
+  }*/
   //Setup IMUs
-  //Serial.println(sizeof(q) / sizeof(unsigned int));
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-    Serial.println(ADDR[i]);
+    //Serial.println(ADDR[i]);
     if (ADDR[i] == ADR) {
       Serial.println("Setup IMU right");
       digitalWrite(AD0R, LOW);   //I2C address 0x68
@@ -228,6 +233,8 @@ void setup() {
     }
     setupIMU(ADDR[i]);
   }
+  //Readying data from IMU; update values for Filter; empty dmp buffer(first values useless)
+  WarmUpIMU();
 }
 
 //=======================================================
@@ -255,6 +262,11 @@ void loop() {
     spikeDetection(q[i], qsn1[i], dif[i]);
   }
 
+  //Filtering IMU data; Terminate outbreaks
+  for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+    *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+  }
+
   //Get Encoder Data Right
   for (unsigned int i = 0; i < sizeof(EncDataR) / sizeof(unsigned int); i++) {
     readEncoder(EncDataR[i], DataPinR[i], CSR[i], CLKR, i);  //Hand over Memory address of EncData and overwrite values
@@ -271,11 +283,6 @@ void loop() {
   //Get Hall Sensor data
   HallR = analogRead(HDOR);
   HallL = analogRead(HDOL);
-
-  //Filtering IMU data; Terminate outbreaks
-  for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-    *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
-  }
 
 #ifdef RUN
   // Right Arm Motion Data
@@ -297,6 +304,7 @@ void loop() {
   Serial.print("/");  //Shoulder Yaw
   Serial.print(HallR);
   Serial.print(";");  //Delimiter ";" to distinguish left and right arm
+
   // Left Arm Motion Data
   Serial.print("l");
   Serial.print("/");  //ID left arm
@@ -315,16 +323,17 @@ void loop() {
   Serial.print(Enc3L);
   Serial.print("/");      //Shoulder Yaw
   Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
+
 #endif
 
 #ifdef EVAL
   //*Compute sampling time
   /*
-    samplingTime = millis() - currentTime;
-    //Output sampling Time
-    Serial.print("Sampling Time:");
-    Serial.println(samplingTime);
-*/
+      samplingTime = millis() - currentTime;
+      //Output sampling Time
+      Serial.print("Sampling Time:");
+      Serial.println(samplingTime);
+    */
 
   //Serial Plot
   //*IMU values of LEFT arm
@@ -337,25 +346,25 @@ void loop() {
   Serial.print(qR.z, 4);
   Serial.print("\t");
   /*
-  Serial.print(qsnR.w, 4);
-  Serial.print("\t");
-  Serial.print(qsnR.x, 4);
-  Serial.print("\t");
-  Serial.print(qsnR.y, 4);
-  Serial.print("\t");
-  Serial.print(qsnR.z, 4);
-  Serial.println("\t");
-*/
+      Serial.print(qsnR.w, 4);
+      Serial.print("\t");
+      Serial.print(qsnR.x, 4);
+      Serial.print("\t");
+      Serial.print(qsnR.y, 4);
+      Serial.print("\t");
+      Serial.print(qsnR.z, 4);
+      Serial.println("\t");
+    */
   /*Encoder values of RIGHT arm
-    Serial.print(Enc1R);      //Shoulder Pitch
-    Serial.print("\t");
-    Serial.print(Enc2R);      //Elbow
-    Serial.print("\t");
-    Serial.print(Enc3R);      //Shoulder Yaw
-    Serial.print("\t");
-    Serial.print(HallR);
-    Serial.print("\t");
-  */
+      Serial.print(Enc1R);      //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2R);      //Elbow
+      Serial.print("\t");
+      Serial.print(Enc3R);      //Shoulder Yaw
+      Serial.print("\t");
+      Serial.print(HallR);
+      Serial.print("\t");
+    */
   //*IMU values of LEFT arm
   Serial.print(qL.w, 4);
   Serial.print("\t");
@@ -367,64 +376,63 @@ void loop() {
   Serial.println("\t");
 
   /*Encoder values of LEFT arm
-    Serial.print(Enc1L);      //Shoulder Pitch
-    Serial.print("\t");
-    Serial.print(Enc2L);      //Elbow
-    Serial.print("\t");
-    Serial.print(Enc3L);      //Shoulder Yaw
-    Serial.print("\t");
-    Serial.println(HallL);
-  */
+      Serial.print(Enc1L);      //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2L);      //Elbow
+      Serial.print("\t");
+      Serial.print(Enc3L);      //Shoulder Yaw
+      Serial.print("\t");
+      Serial.println(HallL);
+    */
 
   //Difference between raw value and last save value
   /*
-  Serial.print(dqR.w, 4);
-  Serial.print("\t");
-  Serial.print(dqR.x, 4);
-  Serial.print("\t");
-  Serial.print(dqR.y, 4);
-  Serial.print("\t");
-  Serial.print(dqR.z, 4);
-  Serial.print("\t");
-
-  Serial.print(dqL.w, 4);
-  Serial.print("\t");
-  Serial.print(dqL.x, 4);
-  Serial.print("\t");
-  Serial.print(dqL.y, 4);
-  Serial.print("\t");
-  Serial.print(dqL.z, 4);
-  Serial.println("\t");
-*/
-  /*
-  for (int i = 0; i < 2; i++) {
-    for (int j = 0; j < 4; j++) {
-      Serial.print(dif[i][j], 4);
+      Serial.print(dqR.w, 4);
       Serial.print("\t");
-    }
-  }
-  Serial.println();
-*/
+      Serial.print(dqR.x, 4);
+      Serial.print("\t");
+      Serial.print(dqR.y, 4);
+      Serial.print("\t");
+      Serial.print(dqR.z, 4);
+      Serial.print("\t");
+
+      Serial.print(dqL.w, 4);
+      Serial.print("\t");
+      Serial.print(dqL.x, 4);
+      Serial.print("\t");
+      Serial.print(dqL.y, 4);
+      Serial.print("\t");
+      Serial.print(dqL.z, 4);
+      Serial.println("\t");
+    */
   /*
-  Serial.print(dqR.w, 4);
-  Serial.print("\t");
-  Serial.print(dqR.x, 4);
-  Serial.print("\t");
-  Serial.print(dqR.y, 4);
-  Serial.print("\t");
-  Serial.print(dqR.z, 4);
-  Serial.print("\t");
+      for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 4; j++) {
+        Serial.print(dif[i][j], 4);
+        Serial.print("\t");
+      }
+      }
+      Serial.println();
+    */
+  /*
+      Serial.print(dqR.w, 4);
+      Serial.print("\t");
+      Serial.print(dqR.x, 4);
+      Serial.print("\t");
+      Serial.print(dqR.y, 4);
+      Serial.print("\t");
+      Serial.print(dqR.z, 4);
+      Serial.print("\t");
 
-  Serial.print(dqL.w, 4);
-  Serial.print("\t");
-  Serial.print(dqL.x, 4);
-  Serial.print("\t");
-  Serial.print(dqL.y, 4);
-  Serial.print("\t");
-  Serial.print(dqL.z, 4);
-  Serial.println("\t");
-  */
-
+      Serial.print(dqL.w, 4);
+      Serial.print("\t");
+      Serial.print(dqL.x, 4);
+      Serial.print("\t");
+      Serial.print(dqL.y, 4);
+      Serial.print("\t");
+      Serial.print(dqL.z, 4);
+      Serial.println("\t");
+    */
 #endif
 }
 
@@ -457,3 +465,36 @@ void breakpoint(void) {
   Serial.print("Debugger Breakpoint!");
   while (true) {}
 }
+
+void WarmUpIMU(void) {
+  // Read sensor data for the first 3 seconds. Empty DMP buffer and update filter values
+  unsigned long startTime = millis();
+  while (millis() - startTime <= 3000) {
+    for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+      if (i == ADR) {
+        digitalWrite(AD0R, LOW);   //I2C address 0x68
+        digitalWrite(AD0L, HIGH);  //I2C Address 0x69
+      } else if (i == ADL) {
+        digitalWrite(AD0R, HIGH);  //I2C address 0x69
+        digitalWrite(AD0L, LOW);   //I2C Address 0x68
+      } else {
+        return;
+      }
+      //Acquire Data from IMU sensor
+      readIMU(q[i], i);
+      //Spike Filter
+      spikeDetection(q[i], qsn1[i], dif[i]);
+    }
+
+    //Filtering IMU data; Terminate outbreaks
+    for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+      *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+    }
+  }
+}
+
+/*void serialFlush() {
+  while (Serial.available() > 0) {
+    char t = Serial.read();
+  }
+  }*/

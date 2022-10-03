@@ -20,16 +20,16 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
     float b0 = 0.1358;
     float b1 = 0.1358;
   */
-  /*Test 2 (fg = 100Hz)
+//*  Test 2 (fg = 100Hz)
   float a1 = 0.8945;
   float b0 = 0.0528;
   float b1 = 0.0528;
-*/
-  //Test 3 (fg)
+
+  /*Test 3 (fg)
   float a1 = 0.9458;
   float b0 = 0.0271;
   float b1 = 0.0271;
-
+  */
   /* Test 4
     float a1 = 0.978;
     float b0 = 0.011;
