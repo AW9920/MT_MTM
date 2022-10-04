@@ -19,9 +19,9 @@ Uduino uduino("MTM");*/
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-#define RUN
+//#define RUN
 //#define DEBUG
-//#define EVAL
+#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -129,6 +129,9 @@ int cw, cx, cy, cz;
 int c[4] = { cw, cx, cy, cz };  //subsequent spike counter
 float dif_R[4], dif_L[4];
 float *dif[2] = { dif_R, dif_L };
+bool L_rdy = false;
+bool R_rdy = false;
+bool ready[2] = { R_rdy, L_rdy };
 //Variables for Encoder data
 unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
 unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
@@ -156,7 +159,7 @@ void readEncoder(unsigned int *OutData, unsigned int DO, int CSn, unsigned int C
 void readIMU(Quaternion *q, int i);
 Quaternion LPFilter(Quaternion *qxn, Quaternion *qxn1, Quaternion *qyn1);
 void spikeDetection(Quaternion *qxn, Quaternion *qyn1);
-void updateQuat(Quaternion *q, float *q_val);
+void UpdateQwF(Quaternion *q, float *q_val);
 float *Quat2floatArr(Quaternion *q);
 void updateArray(float *arr1, float *arr2);
 void breakpoint(void);
@@ -234,7 +237,10 @@ void setup() {
     setupIMU(ADDR[i]);
   }
   //Readying data from IMU; update values for Filter; empty dmp buffer(first values useless)
+  Serial.println("Wait for IMUs to warm up!");
   WarmUpIMU();
+  Serial.println("IMUs warmed up!");
+  delay(1000);
 }
 
 //=======================================================
@@ -344,7 +350,7 @@ void loop() {
   Serial.print(qR.y, 4);
   Serial.print("\t");
   Serial.print(qR.z, 4);
-  Serial.print("\t");
+  Serial.println("\t");
   /*
       Serial.print(qsnR.w, 4);
       Serial.print("\t");
@@ -366,14 +372,14 @@ void loop() {
       Serial.print("\t");
     */
   //*IMU values of LEFT arm
-  Serial.print(qL.w, 4);
-  Serial.print("\t");
-  Serial.print(qL.x, 4);
-  Serial.print("\t");
-  Serial.print(qL.y, 4);
-  Serial.print("\t");
-  Serial.print(qL.z, 4);
-  Serial.println("\t");
+  // Serial.print(qL.w, 4);
+  // Serial.print("\t");
+  // Serial.print(qL.x, 4);
+  // Serial.print("\t");
+  // Serial.print(qL.y, 4);
+  // Serial.print("\t");
+  // Serial.print(qL.z, 4);
+  // Serial.println("\t");
 
   /*Encoder values of LEFT arm
       Serial.print(Enc1L);      //Shoulder Pitch
@@ -436,7 +442,15 @@ void loop() {
 #endif
 }
 
-void updateQuat(Quaternion *q, float *q_val) {
+void UpdateQuat(Quaternion *q_old, Quaternion *q_new) {
+  q_new->w = q_old->w;
+  q_new->x = q_old->x;
+  q_new->y = q_old->y;
+  q_new->z = q_old->z;
+  return;
+}
+
+void UpdateQwF(Quaternion *q, float *q_val) {
   q->w = q_val[0];
   q->x = q_val[1];
   q->y = q_val[2];
@@ -445,12 +459,12 @@ void updateQuat(Quaternion *q, float *q_val) {
 }
 
 float *Quat2floatArr(Quaternion *q) {
-  static float Q_f[4] = {
-    q->w,
-    q->x,
-    q->y,
-    q->z
-  };
+  static float Q_f[4];
+  Q_f[0] = q->w;
+  Q_f[1] = q->x;
+  Q_f[2] = q->y;
+  Q_f[3] = q->z;
+
   return Q_f;
 }
 
@@ -463,13 +477,21 @@ void updateArray(float *arr1, float *arr2) {
 void breakpoint(void) {
   Serial.println();
   Serial.print("Debugger Breakpoint!");
-  while (true) {}
+  while (Serial.available() == 0) {}
 }
 
 void WarmUpIMU(void) {
+  //Function varibale
+  float T = 0.1;
+  float drift[4] = { 0 };
+  float *a;
+  float *b;
+
+  //To-Do: Wirte algorithm that only proceeds when IMU values have stabilized.
+
   // Read sensor data for the first 3 seconds. Empty DMP buffer and update filter values
   unsigned long startTime = millis();
-  while (millis() - startTime <= 3000) {
+  while (millis()-startTime < 13000) {
     for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
       if (i == ADR) {
         digitalWrite(AD0R, LOW);   //I2C address 0x68
@@ -482,15 +504,59 @@ void WarmUpIMU(void) {
       }
       //Acquire Data from IMU sensor
       readIMU(q[i], i);
+
+      //Check if vales are stable
+      // a = Quat2floatArr(q[i]);
+      // Serial.print(a[0]);
+      // Serial.print("\t");
+      // Serial.print(a[1]);
+      // Serial.print("\t");
+      // Serial.print(a[2]);
+      // Serial.print("\t");
+      // Serial.print(a[3]);
+      // Serial.print("\t");
+      // b = Quat2floatArr(qyn1[i]);
+      // Serial.println(b[0]);
+      // Serial.print("\t");
+      // Serial.print(b[1]);
+      // Serial.print("\t");
+      // Serial.print(b[2]);
+      // Serial.print("\t");
+      // Serial.println(b[3]);
+      // for (int j = 0; j < 4; j++) {
+      //   drift[j] = a[j] - b[j];
+      //   Serial.println(a[j] - b[j]);
+      // }
+      // if ((drift[0] < T) && (drift[1] < T) && (drift[2] < T) && (drift[3] < T)) {
+      //   ready[i] = true;
+      // } else {
+      //   ready[i] = false;
+      // }
+
       //Spike Filter
       spikeDetection(q[i], qsn1[i], dif[i]);
-    }
 
-    //Filtering IMU data; Terminate outbreaks
-    for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+      //Filtering IMU data; Terminate outbreaks
       *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
     }
   }
+
+  // //Filtering IMU data; Terminate outbreaks
+  // for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+  //   *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+  // }
+
+  //Check if respective IMU values are stable
+  //   a = Quat2floatArr(q[i]);
+  //   b = Quat2floatArr(qyn1[i]);
+  //   for (int j = 0; j < 4; j++) {
+  //     drift[j] = abs(b[j] - a[j]);
+  //   }
+  //   Serial.println(*drift);
+  //   if ((drift[0] < T) && (drift[1] < T) && (drift[2] < T) && (drift[3] < T)) {
+  //     ready[i] = true;
+  //   }
+  // }
 }
 
 /*void serialFlush() {

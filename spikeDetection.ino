@@ -53,9 +53,9 @@ void spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
   }
 
   //Update varibales
-  updateQuat(qxn, yn);
+  UpdateQwF(qxn, yn);
 
-  updateQuat(qyn1, yn1);
+  UpdateQwF(qyn1, yn1);
 
   updateArray(d, dif);
 
