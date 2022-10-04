@@ -1,23 +1,17 @@
 void readIMU(Quaternion *q, int i) {
-  int mpuIntStatus = mpu.getIntStatus();
-  fifoCount = mpu.getFIFOCount();
+  int mpuIntStatus = mpu[i].getIntStatus();
+  fifoCount = mpu[i].getFIFOCount();
 
   if ((mpuIntStatus & 0x10) || fifoCount == 1024) {  // check if overflow
-    mpu.resetFIFO();
+    mpu[i].resetFIFO();
   } else if (mpuIntStatus & 0x02) {
-    while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
+    while (fifoCount < packetSize) fifoCount = mpu[i].getFIFOCount();
 
-    mpu.getFIFOBytes(fifoBuffer, packetSize);
+    mpu[i].getFIFOBytes(fifoBuffer, packetSize);
     fifoCount -= packetSize;
 
     //Read Quaternions from FIFOBuffer and store in variable q
-    mpu.dmpGetQuaternion(q, fifoBuffer);
-
-    //Cap the quaternions received
-    q->w = constrain(q->w, -1, 1);
-    q->x = constrain(q->x, -1, 1);
-    q->y = constrain(q->y, -1, 1);
-    q->z = constrain(q->z, -1, 1);
+    mpu[i].dmpGetQuaternion(q, fifoBuffer);
 
 #ifdef DEBUGGING
     if (i == ADL) {

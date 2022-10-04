@@ -1,9 +1,9 @@
 //Define Arduino UNO CPU clock
 #define F_CPU 16000000L
 
-//Include Libraries
-/*#include "Uduino.h"  // Include Uduino library at the top of the sketch
-Uduino uduino("MTM");*/
+//=======================================================
+//======            Include libraries             =======
+//=======================================================
 
 //#include <avr/wdt.h>  //Watchdog Timer Library
 #include "I2Cdev.h"
@@ -80,24 +80,11 @@ Uduino uduino("MTM");*/
 #define MPU6050L_GYRO_OFFSET_Y -14
 #define MPU6050L_GYRO_OFFSET_Z 40
 
-//create IMU Object
-// class default I2C address is 0x68
-// specific I2C addresses may be passed as a parameter here
-// AD0 low = 0x68 (default for SparkFun breakout and InvenSense evaluation board)
-// AD0 high = 0x69
-//MPU6050 mpu(0x69); // <-- use for AD0 high
-MPU6050 mpu;
-
-// Causes a Null Operation which has no effect.
-//#define NOP __asm__ __volatile__ ("nop\n\t")        //Skip one single tick. 1NOP = 1tick = 62.5ns
-#define DELAY_CYCLES(n) __builtin_avr_delay_cycles(n)  //Skips n ticks. delay = n*62.5ns /n is integer
-unsigned int const delay_375ns = 6;
-unsigned int const delay_500ns = 8;
 
 //=======================================================
 //======             GLOBAL VARIABLES             =======
 //=======================================================
-// MPU control/status vars
+/*-------------------MPU control/status vars--------------*/
 bool dmpReady;  // set true if DMP init was successful
 bool IMUready;
 uint8_t devStatus;       // return status after each device operation (0 = success, !0 = error)
@@ -105,20 +92,39 @@ uint16_t packetSize;     // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;      // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64];  // FIFO storage buffer
 
-// Encoder control/status vars. Unity calculates true angle
-/*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
-  float angle_res = (float)FSR / (float)bit_res;*/
+/*---------------------create IMU Object------------------*/
+MPU6050 mpuR(0x68);
+MPU6050 mpuL(0x69);
+MPU6050 mpu[] = { mpuR, mpuL };
 
-//orientation/motion vars
+/*--------Causes a Null Operation which has no effect-----*/
+//#define NOP __asm__ __volatile__ ("nop\n\t")        //Skip one single tick. 1NOP = 1tick = 62.5ns
+#define DELAY_CYCLES(n) __builtin_avr_delay_cycles(n)  //Skips n ticks. delay = n*62.5ns /n is integer
+unsigned int const delay_375ns = 6;
+unsigned int const delay_500ns = 8;
+
+/*-----------------------Orientation and motion vars-------------------------*/
 //Quaternion array --> q = [w, x, y, z]
 Quaternion qR, qL;  //current raw quaternion container; left / right IMU
 Quaternion *q[2] = { &qR, &qL };
-//Variables for Low-Pass Filter
+
+/*----------------------Variables for Low-Pass Filter-------------------------*/
+//Quaternion LP
 Quaternion qxn1R, qxn1L;  //previous raw value; left / right IMU
 Quaternion qyn1R, qyn1L;  //previous filtered value; left / right IMU
 Quaternion *qxn1[2] = { &qxn1R, &qxn1L };
 Quaternion *qyn1[2] = { &qyn1R, &qyn1L };
-//Variables for spike detection
+//Encoder Data
+unsigned int Enc1R_xn1, Enc2R_xn1, Enc3R_xn1;  //Last raw measurement of encoders RIGHT
+unsigned int Enc1R_yn1, Enc2R_yn1, Enc3R_yn1;  //Last filtered measurement of encoders RIGHT
+unsigned int Enc1L_xn1, Enc2L_xn1, Enc3L_xn1;  //Last raw measurement of encoders LEFT
+unsigned int Enc1L_yn1, Enc2L_yn1, Enc3L_yn1;  //Last filtered measurement of encoders LEFT
+unsigned int *EncR_xn1[3] = { &Enc1R_xn1, &Enc2R_xn1, &Enc3R_xn1 };
+unsigned int *EncR_yn1[3] = { &Enc1R_yn1, &Enc2R_yn1, &Enc3R_yn1 };
+unsigned int *EncL_xn1[3] = { &Enc1L_xn1, &Enc2L_xn1, &Enc3L_xn1 };
+unsigned int *EncL_yn1[3] = { &Enc1L_yn1, &Enc2L_yn1, &Enc3L_yn1 };
+
+/*----------------------Variables for spike detection------------------------*/
 Quaternion qsn1R, qsn1L;  //previous safe value; left / right IMU
 Quaternion qsnR, qsnL;    //current Filter output (Debugging)
 Quaternion *qsn1[2] = { &qsn1R, &qsn1L };
@@ -129,10 +135,8 @@ int cw, cx, cy, cz;
 int c[4] = { cw, cx, cy, cz };  //subsequent spike counter
 float dif_R[4], dif_L[4];
 float *dif[2] = { dif_R, dif_L };
-bool L_rdy = false;
-bool R_rdy = false;
-bool ready[2] = { R_rdy, L_rdy };
-//Variables for Encoder data
+
+/*--------------------------Variables for Encoder data-----------------------*/
 unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
 unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
 unsigned int *EncDataR[3] = { &Enc1R, &Enc2R, &Enc3R };  //Pointer Array Right Encoders declaration
@@ -145,11 +149,19 @@ unsigned int ADDR[2] = {
   ADR,  //Right IMU index 0
   ADL   //Left IMU index 1
 };
-//Hall Sensor variables
+
+/*---------------------------Hall Sensor variables---------------------------*/
 int HallR;
 int HallL;
 
-//[Shoulder_P, Shoulder_Y, Elbow]
+/*----------------------------Other variables--------------------------------*/
+unsigned long currentTime;
+unsigned long samplingTime;
+
+// Encoder control/status vars. Unity calculates true angle
+/*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
+  float angle_res = (float)FSR / (float)bit_res;*/
+
 //=======================================================
 //======            FUNCTION DECLARATION          =======
 //=======================================================
@@ -164,10 +176,7 @@ float *Quat2floatArr(Quaternion *q);
 void updateArray(float *arr1, float *arr2);
 void breakpoint(void);
 void WarmUpIMU(void);
-
-//Other variables
-unsigned long currentTime;
-unsigned long samplingTime;
+void sendData(void);
 
 //=======================================================
 //======              INITIAL SETUP               =======
@@ -205,6 +214,9 @@ void setup() {
   digitalWrite(CS1L, HIGH);
   digitalWrite(CS2L, HIGH);
   digitalWrite(CS3L, HIGH);
+  //Set addresses of IMUs
+  digitalWrite(AD0R, LOW);   //I2C address 0x68
+  digitalWrite(AD0L, HIGH);  //I2C Address 0x69
 
   //Setup Serial Communication
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -215,32 +227,13 @@ void setup() {
 #endif
   //Set Baudrate at 115200 Bps
   Serial.begin(115200);
-  while (!Serial)
-    ;  // wait for Leonardo enumeration, others continue immediately
-  /*while (!uduino.isConnected()) {
-    uduino.update(); // Wait for Uduino to connect; Before anything is serial plotted
-  }*/
+  while (!Serial) {};  // wait for Leonardo enumeration, others continue immediately
+
   //Setup IMUs
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     //Serial.println(ADDR[i]);
-    if (ADDR[i] == ADR) {
-      Serial.println("Setup IMU right");
-      digitalWrite(AD0R, LOW);   //I2C address 0x68
-      digitalWrite(AD0L, HIGH);  //I2C Address 0x69
-    } else if (ADDR[i] == ADL) {
-      Serial.println("Setup IMU left");
-      digitalWrite(AD0R, HIGH);  //I2C address 0x69
-      digitalWrite(AD0L, LOW);   //I2C Address 0x68
-    } else {
-      return;
-    }
-    setupIMU(ADDR[i]);
+    setupIMU(ADDR[i], i);
   }
-  //Readying data from IMU; update values for Filter; empty dmp buffer(first values useless)
-  Serial.println("Wait for IMUs to warm up!");
-  WarmUpIMU();
-  Serial.println("IMUs warmed up!");
-  delay(1000);
 }
 
 //=======================================================
@@ -253,8 +246,7 @@ void loop() {
   //Get Quaternion Data
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     if (i == ADR) {
-      digitalWrite(AD0R, LOW);   //I2C address 0x68
-      digitalWrite(AD0L, HIGH);  //I2C Address 0x69
+
     } else if (i == ADL) {
       digitalWrite(AD0R, HIGH);  //I2C address 0x69
       digitalWrite(AD0L, LOW);   //I2C Address 0x68
@@ -266,11 +258,15 @@ void loop() {
 
     //Spike Filter
     spikeDetection(q[i], qsn1[i], dif[i]);
-  }
 
-  //Filtering IMU data; Terminate outbreaks
-  for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
+    //Filtering IMU data; Terminate outbreaks
     *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+
+    //Cap the quaternions received
+    q[i]->w = constrain(q[i]->w, -1, 1);
+    q[i]->x = constrain(q[i]->x, -1, 1);
+    q[i]->y = constrain(q[i]->y, -1, 1);
+    q[i]->z = constrain(q[i]->z, -1, 1);
   }
 
   //Get Encoder Data Right
@@ -282,8 +278,15 @@ void loop() {
   //Get Encoder Data Left
   for (unsigned int i = 0; i < sizeof(EncDataL) / sizeof(unsigned int); i++) {
     readEncoder(EncDataL[i], DataPinL[i], CSL[i], CLKL, i);  //Hand over Memory address of EncData and overwrite values
+    delayMicroseconds(1);                                    //Tcs waiting for another read in
+  }
 
-    delayMicroseconds(1);  //Tcs waiting for another read in
+  //Digitla low pas filter on encoder data
+  for (unsigned int i = 0; i < sizeof(EncDataR) / sizeof(unsigned int); i++) {
+    *EncDataR[i] = LPFilter_Encoder(EncDataR[i], EncR_xn1[i], EncR_yn1[i]);
+  }
+  for (unsigned int i = 0; i < sizeof(EncDataL) / sizeof(unsigned int); i++) {
+    *EncDataL[i] = LPFilter_Encoder(EncDataL[i], EncL_xn1[i], EncL_yn1[i]);
   }
 
   //Get Hall Sensor data
@@ -291,6 +294,19 @@ void loop() {
   HallL = analogRead(HDOL);
 
 #ifdef RUN
+  sendData();
+#endif
+
+#ifdef EVAL
+  SerialPrintData(3);
+#endif
+}
+
+//=======================================================
+//======               Functions                  =======
+//=======================================================
+
+void sendData(void) {
   // Right Arm Motion Data
   Serial.print("r");
   Serial.print("/");  //ID right arm
@@ -329,117 +345,6 @@ void loop() {
   Serial.print(Enc3L);
   Serial.print("/");      //Shoulder Yaw
   Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
-
-#endif
-
-#ifdef EVAL
-  //*Compute sampling time
-  /*
-      samplingTime = millis() - currentTime;
-      //Output sampling Time
-      Serial.print("Sampling Time:");
-      Serial.println(samplingTime);
-    */
-
-  //Serial Plot
-  //*IMU values of LEFT arm
-  Serial.print(qR.w, 4);
-  Serial.print("\t");
-  Serial.print(qR.x, 4);
-  Serial.print("\t");
-  Serial.print(qR.y, 4);
-  Serial.print("\t");
-  Serial.print(qR.z, 4);
-  Serial.println("\t");
-  /*
-      Serial.print(qsnR.w, 4);
-      Serial.print("\t");
-      Serial.print(qsnR.x, 4);
-      Serial.print("\t");
-      Serial.print(qsnR.y, 4);
-      Serial.print("\t");
-      Serial.print(qsnR.z, 4);
-      Serial.println("\t");
-    */
-  /*Encoder values of RIGHT arm
-      Serial.print(Enc1R);      //Shoulder Pitch
-      Serial.print("\t");
-      Serial.print(Enc2R);      //Elbow
-      Serial.print("\t");
-      Serial.print(Enc3R);      //Shoulder Yaw
-      Serial.print("\t");
-      Serial.print(HallR);
-      Serial.print("\t");
-    */
-  //*IMU values of LEFT arm
-  // Serial.print(qL.w, 4);
-  // Serial.print("\t");
-  // Serial.print(qL.x, 4);
-  // Serial.print("\t");
-  // Serial.print(qL.y, 4);
-  // Serial.print("\t");
-  // Serial.print(qL.z, 4);
-  // Serial.println("\t");
-
-  /*Encoder values of LEFT arm
-      Serial.print(Enc1L);      //Shoulder Pitch
-      Serial.print("\t");
-      Serial.print(Enc2L);      //Elbow
-      Serial.print("\t");
-      Serial.print(Enc3L);      //Shoulder Yaw
-      Serial.print("\t");
-      Serial.println(HallL);
-    */
-
-  //Difference between raw value and last save value
-  /*
-      Serial.print(dqR.w, 4);
-      Serial.print("\t");
-      Serial.print(dqR.x, 4);
-      Serial.print("\t");
-      Serial.print(dqR.y, 4);
-      Serial.print("\t");
-      Serial.print(dqR.z, 4);
-      Serial.print("\t");
-
-      Serial.print(dqL.w, 4);
-      Serial.print("\t");
-      Serial.print(dqL.x, 4);
-      Serial.print("\t");
-      Serial.print(dqL.y, 4);
-      Serial.print("\t");
-      Serial.print(dqL.z, 4);
-      Serial.println("\t");
-    */
-  /*
-      for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < 4; j++) {
-        Serial.print(dif[i][j], 4);
-        Serial.print("\t");
-      }
-      }
-      Serial.println();
-    */
-  /*
-      Serial.print(dqR.w, 4);
-      Serial.print("\t");
-      Serial.print(dqR.x, 4);
-      Serial.print("\t");
-      Serial.print(dqR.y, 4);
-      Serial.print("\t");
-      Serial.print(dqR.z, 4);
-      Serial.print("\t");
-
-      Serial.print(dqL.w, 4);
-      Serial.print("\t");
-      Serial.print(dqL.x, 4);
-      Serial.print("\t");
-      Serial.print(dqL.y, 4);
-      Serial.print("\t");
-      Serial.print(dqL.z, 4);
-      Serial.println("\t");
-    */
-#endif
 }
 
 void UpdateQuat(Quaternion *q_old, Quaternion *q_new) {
@@ -476,91 +381,14 @@ void updateArray(float *arr1, float *arr2) {
 
 void breakpoint(void) {
   Serial.println();
-  Serial.print("Debugger Breakpoint!");
-  while (Serial.available() == 0) {}
+  Serial.print("Debugger Breakpoint! Enter any character to continue!");
+  while (Serial.available() && Serial.read()) {};  // empty buffer
+  while (!Serial.available()) {};                  // wait for data
+  while (Serial.available() && Serial.read()) {};  // empty buffer again
 }
 
-void WarmUpIMU(void) {
-  //Function varibale
-  float T = 0.1;
-  float drift[4] = { 0 };
-  float *a;
-  float *b;
-
-  //To-Do: Wirte algorithm that only proceeds when IMU values have stabilized.
-
-  // Read sensor data for the first 3 seconds. Empty DMP buffer and update filter values
-  unsigned long startTime = millis();
-  while (millis()-startTime < 13000) {
-    for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-      if (i == ADR) {
-        digitalWrite(AD0R, LOW);   //I2C address 0x68
-        digitalWrite(AD0L, HIGH);  //I2C Address 0x69
-      } else if (i == ADL) {
-        digitalWrite(AD0R, HIGH);  //I2C address 0x69
-        digitalWrite(AD0L, LOW);   //I2C Address 0x68
-      } else {
-        return;
-      }
-      //Acquire Data from IMU sensor
-      readIMU(q[i], i);
-
-      //Check if vales are stable
-      // a = Quat2floatArr(q[i]);
-      // Serial.print(a[0]);
-      // Serial.print("\t");
-      // Serial.print(a[1]);
-      // Serial.print("\t");
-      // Serial.print(a[2]);
-      // Serial.print("\t");
-      // Serial.print(a[3]);
-      // Serial.print("\t");
-      // b = Quat2floatArr(qyn1[i]);
-      // Serial.println(b[0]);
-      // Serial.print("\t");
-      // Serial.print(b[1]);
-      // Serial.print("\t");
-      // Serial.print(b[2]);
-      // Serial.print("\t");
-      // Serial.println(b[3]);
-      // for (int j = 0; j < 4; j++) {
-      //   drift[j] = a[j] - b[j];
-      //   Serial.println(a[j] - b[j]);
-      // }
-      // if ((drift[0] < T) && (drift[1] < T) && (drift[2] < T) && (drift[3] < T)) {
-      //   ready[i] = true;
-      // } else {
-      //   ready[i] = false;
-      // }
-
-      //Spike Filter
-      spikeDetection(q[i], qsn1[i], dif[i]);
-
-      //Filtering IMU data; Terminate outbreaks
-      *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
-    }
-  }
-
-  // //Filtering IMU data; Terminate outbreaks
-  // for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-  //   *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
-  // }
-
-  //Check if respective IMU values are stable
-  //   a = Quat2floatArr(q[i]);
-  //   b = Quat2floatArr(qyn1[i]);
-  //   for (int j = 0; j < 4; j++) {
-  //     drift[j] = abs(b[j] - a[j]);
-  //   }
-  //   Serial.println(*drift);
-  //   if ((drift[0] < T) && (drift[1] < T) && (drift[2] < T) && (drift[3] < T)) {
-  //     ready[i] = true;
-  //   }
-  // }
-}
-
-/*void serialFlush() {
+void serialFlush() {
   while (Serial.available() > 0) {
     char t = Serial.read();
   }
-  }*/
+}

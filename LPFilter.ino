@@ -15,39 +15,10 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   Quaternion qyn;      //Empty container for filtered quaterion
   bool enable = true;  //Enabling LP Filter (Debugging)
   // coefficients for constant coefficient differential equation
-  /* Test 1
-    float a1 = 0.7285;
-    float b0 = 0.1358;
-    float b1 = 0.1358;
-  */
-//*  Test 2 (fg = 100Hz)
   float a1 = 0.8945;
   float b0 = 0.0528;
   float b1 = 0.0528;
 
-  /*Test 3 (fg)
-  float a1 = 0.9458;
-  float b0 = 0.0271;
-  float b1 = 0.0271;
-  */
-  /* Test 4
-    float a1 = 0.978;
-    float b0 = 0.011;
-    float b1 = 0.011;
-  */
-
-  /* Test 5
-    float a1 = 0.5218;
-    float b0 = 0.2391;
-    float b1 = 0.2391;
-  */
-
-  //Test 6 (fg=14.286 Hz)
-  /*
-    float a1 = 0.906;
-    float b0 = 0.047;
-    float b1 = 0.047;
-*/
   // Apply filter on extracted measured data
   if (enable == true) {
     qyn.w = a1 * qyn1->w + b0 * qxn->w + b1 * qxn1->w;
@@ -66,3 +37,36 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
 
   return qyn;
 }
+/* Test 1
+    float a1 = 0.7285;
+    float b0 = 0.1358;
+    float b1 = 0.1358;
+  */
+//*  Test 2 (fg = 100Hz)
+// float a1 = 0.8945;
+// float b0 = 0.0528;
+// float b1 = 0.0528;
+
+/*Test 3 (fg)
+  float a1 = 0.9458;
+  float b0 = 0.0271;
+  float b1 = 0.0271;
+  */
+/* Test 4
+    float a1 = 0.978;
+    float b0 = 0.011;
+    float b1 = 0.011;
+  */
+
+/* Test 5
+    float a1 = 0.5218;
+    float b0 = 0.2391;
+    float b1 = 0.2391;
+  */
+
+//Test 6 (fg=14.286 Hz)
+/*
+    float a1 = 0.906;
+    float b0 = 0.047;
+    float b1 = 0.047;
+*/
