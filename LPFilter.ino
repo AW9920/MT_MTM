@@ -27,8 +27,8 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
     qyn.z = a1 * qyn1->z + b0 * qxn->z + b1 * qxn1->z;
 
     // Update containers for previous raw and filtered quaternions
-    *qxn1 = *qxn;
-    *qyn1 = qyn;
+    /**qxn1 = *qxn;
+    *qyn1 = qyn;*/
 
   } else {
     //Return unfiltered values

@@ -84,6 +84,12 @@
 //=======================================================
 //======             GLOBAL VARIABLES             =======
 //=======================================================
+/*--------Causes a Null Operation which has no effect-----*/
+//#define NOP __asm__ __volatile__ ("nop\n\t")        //Skip one single tick. 1NOP = 1tick = 62.5ns
+#define DELAY_CYCLES(n) __builtin_avr_delay_cycles(n)  //Skips n ticks. delay = n*62.5ns /n is integer
+unsigned int const delay_375ns = 6;
+unsigned int const delay_500ns = 8;
+
 /*-------------------MPU control/status vars--------------*/
 bool dmpReady;  // set true if DMP init was successful
 bool IMUready;
@@ -97,11 +103,24 @@ MPU6050 mpuR(0x68);
 MPU6050 mpuL(0x69);
 MPU6050 mpu[] = { mpuR, mpuL };
 
-/*--------Causes a Null Operation which has no effect-----*/
-//#define NOP __asm__ __volatile__ ("nop\n\t")        //Skip one single tick. 1NOP = 1tick = 62.5ns
-#define DELAY_CYCLES(n) __builtin_avr_delay_cycles(n)  //Skips n ticks. delay = n*62.5ns /n is integer
-unsigned int const delay_375ns = 6;
-unsigned int const delay_500ns = 8;
+/*-------------------OFFSET Encoder values----------------*/
+float Enc1R_OFF = 1684;
+float Enc2R_OFF = 2353;
+float Enc3R_OFF = 1823;
+
+float Enc1L_OFF;
+float Enc2L_OFF;
+float Enc3L_OFF;
+
+/*--------------------OVERFLOW detection------------------*/
+int const high_lim = 2047;
+int const low_lim = -2048;
+int const gain = 4095;
+
+int Enc1R_inc, Enc2R_inc, Enc3R_inc;
+int Enc1L_inc, Enc2L_inc, Enc3L_inc;
+int *EncDataR_inc[3] = { &Enc1R_inc, &Enc2R_inc, &Enc3R_inc };
+int *EncDataL_inc[3] = { &Enc1L_inc, &Enc2L_inc, &Enc3L_inc };
 
 /*-----------------------Orientation and motion vars-------------------------*/
 //Quaternion array --> q = [w, x, y, z]
@@ -109,20 +128,32 @@ Quaternion qR, qL;  //current raw quaternion container; left / right IMU
 Quaternion *q[2] = { &qR, &qL };
 
 /*----------------------Variables for Low-Pass Filter-------------------------*/
-//Quaternion LP
+//Quaternion Data
+Quaternion qxnR, qxnL;    //temp raw value; left / right IMU
 Quaternion qxn1R, qxn1L;  //previous raw value; left / right IMU
 Quaternion qyn1R, qyn1L;  //previous filtered value; left / right IMU
+Quaternion qynR, qynL;    //previous filtered value; left / right IMU
+Quaternion *qxn[2] = { &qxnR, &qxnL };
 Quaternion *qxn1[2] = { &qxn1R, &qxn1L };
 Quaternion *qyn1[2] = { &qyn1R, &qyn1L };
+Quaternion *qyn[2] = { &qynR, &qynL };
 //Encoder Data
+unsigned int Enc1R_xn, Enc2R_xn, Enc3R_xn;     //Temp raw measurement of encoders RIGHT
 unsigned int Enc1R_xn1, Enc2R_xn1, Enc3R_xn1;  //Last raw measurement of encoders RIGHT
 unsigned int Enc1R_yn1, Enc2R_yn1, Enc3R_yn1;  //Last filtered measurement of encoders RIGHT
+unsigned int Enc1R_yn, Enc2R_yn, Enc3R_yn;     //Last filtered measurement of encoders RIGHT
+unsigned int Enc1L_xn, Enc2L_xn, Enc3L_xn;     //Last raw measurement of encoders LEFT
 unsigned int Enc1L_xn1, Enc2L_xn1, Enc3L_xn1;  //Last raw measurement of encoders LEFT
 unsigned int Enc1L_yn1, Enc2L_yn1, Enc3L_yn1;  //Last filtered measurement of encoders LEFT
+unsigned int Enc1L_yn, Enc2L_yn, Enc3L_yn;     //Temp filtered measurement of encoders LEFT
+unsigned int *EncR_xn[3] = { &Enc1R_xn, &Enc2R_xn, &Enc3R_xn };
 unsigned int *EncR_xn1[3] = { &Enc1R_xn1, &Enc2R_xn1, &Enc3R_xn1 };
 unsigned int *EncR_yn1[3] = { &Enc1R_yn1, &Enc2R_yn1, &Enc3R_yn1 };
+unsigned int *EncR_yn[3] = { &Enc1R_yn, &Enc2R_yn, &Enc3R_yn };
+unsigned int *EncL_xn[3] = { &Enc1L_xn, &Enc2L_xn, &Enc3L_xn };
 unsigned int *EncL_xn1[3] = { &Enc1L_xn1, &Enc2L_xn1, &Enc3L_xn1 };
 unsigned int *EncL_yn1[3] = { &Enc1L_yn1, &Enc2L_yn1, &Enc3L_yn1 };
+unsigned int *EncL_yn[3] = { &Enc1L_yn, &Enc2L_yn, &Enc3L_yn };
 
 /*----------------------Variables for spike detection------------------------*/
 Quaternion qsn1R, qsn1L;  //previous safe value; left / right IMU
@@ -137,14 +168,14 @@ float dif_R[4], dif_L[4];
 float *dif[2] = { dif_R, dif_L };
 
 /*--------------------------Variables for Encoder data-----------------------*/
-unsigned int Enc1R, Enc2R, Enc3R;                        //Assigne Variable to Memory
-unsigned int Enc1L, Enc2L, Enc3L;                        //Assigne Variable to Memory
-unsigned int *EncDataR[3] = { &Enc1R, &Enc2R, &Enc3R };  //Pointer Array Right Encoders declaration
-unsigned int *EncDataL[3] = { &Enc1L, &Enc2L, &Enc3L };  //Pointer Array Left Encoders declaration
-unsigned int DataPinR[3] = { DO1R, DO2R, DO3R };         //Data Pins Encoder right arm
-unsigned int DataPinL[3] = { DO1L, DO2L, DO3L };         //Data Pins Encoder left arm
-unsigned int CSR[3] = { CS1R, CS2R, CS3R };              //Pointer Array Chip selection Pin Right
-unsigned int CSL[3] = { CS1L, CS2L, CS3L };              //Pointer Array Chip selection Pin Left
+int Enc1R, Enc2R, Enc3R;                          //Assigne Variable to Memory
+int Enc1L, Enc2L, Enc3L;                          //Assigne Variable to Memory
+int *EncDataR[3] = { &Enc1R, &Enc2R, &Enc3R };    //Pointer Array Right Encoders declaration
+int *EncDataL[3] = { &Enc1L, &Enc2L, &Enc3L };    //Pointer Array Left Encoders declaration
+unsigned int DataPinR[3] = { DO1R, DO2R, DO3R };  //Data Pins Encoder right arm
+unsigned int DataPinL[3] = { DO1L, DO2L, DO3L };  //Data Pins Encoder left arm
+unsigned int CSR[3] = { CS1R, CS2R, CS3R };       //Pointer Array Chip selection Pin Right
+unsigned int CSL[3] = { CS1L, CS2L, CS3L };       //Pointer Array Chip selection Pin Left
 unsigned int ADDR[2] = {
   ADR,  //Right IMU index 0
   ADL   //Left IMU index 1
@@ -234,6 +265,8 @@ void setup() {
     //Serial.println(ADDR[i]);
     setupIMU(ADDR[i], i);
   }
+  Serial.println("Setup successful!");
+  delay(200);
 }
 
 //=======================================================
@@ -243,7 +276,7 @@ void loop() {
   // Update current Time at begin of sensor data sampling
   currentTime = millis();
 
-  //Get Quaternion Data
+  //---------------------Get Quaternion Data-------------------------------
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     if (i == ADR) {
 
@@ -254,39 +287,67 @@ void loop() {
       return;
     }
     //Acquire Data from IMU sensor
-    readIMU(q[i], i);
+    readIMU(qxn[i], i);
 
     //Spike Filter
-    spikeDetection(q[i], qsn1[i], dif[i]);
+    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i]);
 
     //Filtering IMU data; Terminate outbreaks
-    *q[i] = LPFilter(q[i], qxn1[i], qyn1[i]);
+    *qyn[i] = LPFilter(qsn[i], qxn1[i], qyn1[i]);
 
     //Cap the quaternions received
-    q[i]->w = constrain(q[i]->w, -1, 1);
-    q[i]->x = constrain(q[i]->x, -1, 1);
-    q[i]->y = constrain(q[i]->y, -1, 1);
-    q[i]->z = constrain(q[i]->z, -1, 1);
+    qyn[i]->w = constrain(qyn[i]->w, -1, 1);
+    qyn[i]->x = constrain(qyn[i]->x, -1, 1);
+    qyn[i]->y = constrain(qyn[i]->y, -1, 1);
+    qyn[i]->z = constrain(qyn[i]->z, -1, 1);
+
+    //Update values
+    UpdateQuat(qyn1[i], qyn[i]);  //Update previous filtered IMU measurement
+    UpdateQuat(qxn1[i], qxn[i]);  //Update previous raw IMU measurement
+    //UpdateQuat(qsn1, qsn);  //Update previous save Spike Detection value (already done inside function)
+
+    //Pack processed data into variables send over Serial Bus
+    UpdateQuat(q[i], qyn[i]);
   }
 
-  //Get Encoder Data Right
-  for (unsigned int i = 0; i < sizeof(EncDataR) / sizeof(unsigned int); i++) {
-    readEncoder(EncDataR[i], DataPinR[i], CSR[i], CLKR, i);  //Hand over Memory address of EncData and overwrite values
-    delayMicroseconds(1);                                    //Tcs waiting for another read in
+  //-----------------------Get Encoder Data Right-------------------------------
+  for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
+    readEncoder(EncR_xn[i], DataPinR[i], CSR[i], CLKR, i);  //Hand over Memory address of EncData and overwrite values
+    delayMicroseconds(1);                                   //Tcs waiting for another read in
   }
 
-  //Get Encoder Data Left
-  for (unsigned int i = 0; i < sizeof(EncDataL) / sizeof(unsigned int); i++) {
-    readEncoder(EncDataL[i], DataPinL[i], CSL[i], CLKL, i);  //Hand over Memory address of EncData and overwrite values
-    delayMicroseconds(1);                                    //Tcs waiting for another read in
+  //------------------------Get Encoder Data Left-------------------------------
+  for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
+    readEncoder(EncL_xn[i], DataPinL[i], CSL[i], CLKL, i);  //Hand over Memory address of EncData and overwrite values
+    delayMicroseconds(1);                                   //Tcs waiting for another read in
   }
 
-  //Digitla low pas filter on encoder data
-  for (unsigned int i = 0; i < sizeof(EncDataR) / sizeof(unsigned int); i++) {
-    *EncDataR[i] = LPFilter_Encoder(EncDataR[i], EncR_xn1[i], EncR_yn1[i]);
+  //--------------Digitla low pas filter on encoder data-------------------------
+  for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
+    *EncR_yn[i] = LPFilter_Encoder(EncR_xn[i], EncR_xn1[i], EncR_yn1[i]);
+
+    //Overlow detection
+    *EncDataR_inc[i] = OverFlowDetection(EncR_yn[i], EncR_yn1[i]);
+
+    //Update values
+    updateArray(EncR_xn1[i], EncR_xn[i]);
+    updateArray(EncR_yn1[i], EncR_yn[i]);
+
+    //Pack processed data into variables send over Serial Bus
+    updateArray(EncDataR[i], EncDataR_inc[i]);
   }
-  for (unsigned int i = 0; i < sizeof(EncDataL) / sizeof(unsigned int); i++) {
-    *EncDataL[i] = LPFilter_Encoder(EncDataL[i], EncL_xn1[i], EncL_yn1[i]);
+  for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
+    *EncL_yn[i] = LPFilter_Encoder(EncL_xn[i], EncL_xn1[i], EncL_yn1[i]);
+
+    //Overlow detection
+    *EncDataL_inc[i] = OverFlowDetection(EncL_yn[i], EncL_yn1[i]);
+
+    //Update values
+    updateArray(EncL_xn1[i], EncL_xn[i]);
+    updateArray(EncL_yn1[i], EncL_yn[i]);
+
+    //Pack processed data into variables send over Serial Bus
+    updateArray(EncDataL[i], EncDataL_inc[i]);
   }
 
   //Get Hall Sensor data
@@ -294,11 +355,12 @@ void loop() {
   HallL = analogRead(HDOL);
 
 #ifdef RUN
+  //Call Data Send function
   sendData();
 #endif
 
 #ifdef EVAL
-  SerialPrintData(3);
+  SerialPrintData(2);
 #endif
 }
 
@@ -347,7 +409,48 @@ void sendData(void) {
   Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
 }
 
-void UpdateQuat(Quaternion *q_old, Quaternion *q_new) {
+void sendData2(void) {
+  // Right Arm Motion Data
+  Serial.print("r");
+  Serial.print("/");  //ID right arm
+  Serial.print(qR.w, 4);
+  Serial.print("/");  //Delimiter "/" to distinguish values of individual
+  Serial.print(qR.x, 4);
+  Serial.print("/");
+  Serial.print(qR.y, 4);
+  Serial.print("/");
+  Serial.print(qR.z, 4);
+  Serial.print("/");
+  Serial.print(Enc1R_inc);
+  Serial.print("/");  //Shoulder Pitch
+  Serial.print(Enc2R_inc);
+  Serial.print("/");  //Elbow
+  Serial.print(Enc3R_inc);
+  Serial.print("/");  //Shoulder Yaw
+  Serial.print(HallR);
+  Serial.print(";");  //Delimiter ";" to distinguish left and right arm
+
+  // Left Arm Motion Data
+  Serial.print("l");
+  Serial.print("/");  //ID left arm
+  Serial.print(qL.w, 4);
+  Serial.print("/");  //Delimiter "/" to distinguish values of individual
+  Serial.print(qL.x, 4);
+  Serial.print("/");
+  Serial.print(qL.y, 4);
+  Serial.print("/");
+  Serial.print(qL.z, 4);
+  Serial.print("/");
+  Serial.print(Enc1L_inc);
+  Serial.print("/");  //Shoulder Pitch
+  Serial.print(Enc2L_inc);
+  Serial.print("/");  //Elbow
+  Serial.print(Enc3L_inc);
+  Serial.print("/");      //Shoulder Yaw
+  Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
+}
+
+void UpdateQuat(Quaternion *q_new, Quaternion *q_old) {
   q_new->w = q_old->w;
   q_new->x = q_old->x;
   q_new->y = q_old->y;
@@ -374,7 +477,22 @@ float *Quat2floatArr(Quaternion *q) {
 }
 
 void updateArray(float *arr1, float *arr2) {
-  for (int i = 0; i < sizeof(*arr1); i++) {
+  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+   // Serial.println(sizeof(arr1) / sizeof(arr1[0]));
+    arr1[i] = arr2[i];
+  }
+}
+
+void updateArray(unsigned int *arr1, unsigned int *arr2) {
+  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+    //Serial.println(sizeof(arr1) / sizeof(arr1[0]));
+    arr1[i] = arr2[i];
+  }
+}
+
+void updateArray(int *arr1, int *arr2) {
+  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+    //Serial.println(sizeof(arr1) / sizeof(arr1[0]));
     arr1[i] = arr2[i];
   }
 }

@@ -1,4 +1,4 @@
-void spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
+Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
   //=======================================================
   //======            FUNCTION Variables            =======
   //=======================================================
@@ -53,11 +53,14 @@ void spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
   }
 
   //Update varibales
-  UpdateQwF(qxn, yn);
+  q.w = yn[0];
+  q.x = yn[1];
+  q.y = yn[2];
+  q.z = yn[3];
 
   UpdateQwF(qyn1, yn1);
 
   updateArray(d, dif);
 
-  return;
+  return q;
 }

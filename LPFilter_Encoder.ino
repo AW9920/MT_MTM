@@ -23,9 +23,9 @@ float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1) {
   if (enable == true) {
     yn = a1 * (float)*yn1 + b0 * (float)*xn + b1 * (float)*xn1;
 
-    // Update containers for previous raw and filtered quaternions
+    /* Update containers for previous raw and filtered quaternions
     *xn1 = *xn;
-    *yn1 = yn;
+    *yn1 = yn;*/
 
   } else {
     //Return unfiltered values

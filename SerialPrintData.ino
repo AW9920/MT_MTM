@@ -128,5 +128,23 @@ void SerialPrintData(int type) {
       Serial.print(dqL.z, 4);
       Serial.println("\t");
       break;
+
+    case 6:
+      //Encoder right arm
+      Serial.print("[ShoulderP, Elbow, ShoulderY] right:\t");
+      Serial.print(Enc1R_inc);  //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2R_inc);  //Elbow
+      Serial.print("\t");
+      Serial.print(Enc3R_inc);  //Shoulder Yaw
+      Serial.print("\t");
+      //Encoder left arm
+      Serial.print("[ShoulderP, Elbow, ShoulderY] left:\t");
+      Serial.print(Enc1L_inc);  //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2L_inc);  //Elbow
+      Serial.print("\t");
+      Serial.println(Enc3L_inc);  //Shoulder Yaw
+      break;
   }
 }
