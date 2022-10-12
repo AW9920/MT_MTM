@@ -20,16 +20,19 @@ float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1, b
   float b1 = 0.2391;
 
   // Apply filter on extracted measured data
-  if (rollover[i] == false || rollunder[i] == false) {
+  if (rollover[i] == false && rollunder[i] == false) {
     yn = a1 * (float)*yn1 + b0 * (float)*xn + b1 * (float)*xn1;
 
   } else if (rollover[i] == true && rollunder[i] == false) {  //Case Rollover: Shortly deactivate filter and update filter variables
     //Return unfiltered values
     yn = *xn;
     rollover[i] = false;
+    //Serial.println("Filter temporarily turned off");
+
   } else if (rollover[i] == false && rollunder[i] == true) {
     yn = *xn;
     rollunder[i] = false;
+    //Serial.println("Filter temporarily turned off");
   }
 
   return yn;

@@ -10,10 +10,12 @@ void OverFlowDetection(unsigned int *temp, unsigned int *pre, bool *rollover, bo
     rollover[i] = true;
     rollunder[i] = false;
     counter[i]++;
+    //Serial.println("Rollover");
   } else if (dif > high_lim) {
     rollover[i] = false;
     rollunder[i] = true;
     counter[i]--;
+    //Serial.println("Rollunder");
   } else {
     rollover[i] = false;
     rollunder[i] = false;
