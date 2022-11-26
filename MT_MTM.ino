@@ -19,9 +19,9 @@
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-//#define RUN
+#define RUN
 //#define DEBUG
-#define EVAL
+//#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -385,7 +385,7 @@ void loop() {
 #endif
 
 #ifdef EVAL
-  SerialPrintData(2);
+  SerialPrintData(1);
 #endif
 }
 
@@ -531,6 +531,7 @@ void breakpoint(void) {
 }
 
 void serialFlush() {
+  Serial.flush();
   while (Serial.available() > 0) {
     char t = Serial.read();
   }

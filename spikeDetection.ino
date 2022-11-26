@@ -3,7 +3,7 @@ Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
   //======            FUNCTION Variables            =======
   //=======================================================
   int n = 1;      //counter until a spike is accepted as correct; Define zero to comfortably turn filter off
-  float T = 0.8;  //Threshold for which the raw value is replaced with the last safe value
+  float T = 0.4;  //Threshold for which the raw value is replaced with the last safe value
 
   //Empty container for filtered values
   Quaternion q;
