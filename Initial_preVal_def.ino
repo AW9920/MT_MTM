@@ -2,7 +2,7 @@ void Initial_preVal_def(void) {
   //-----------Read IMU data and define initial previous values--------------------
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     readIMU(qxn[i], i);
-    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i]);
+    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i],i);
     *qyn[i] = LPFilter(qsn[i], qxn1[i], qyn1[i]);
     UpdateQuat(qyn1[i], qyn[i]);  //Initial definition of previous filtered IMU measurement
     UpdateQuat(qxn1[i], qxn[i]);  //Initial definition of previous raw IMU measurement

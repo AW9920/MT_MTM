@@ -19,9 +19,9 @@
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-#define RUN
+//#define RUN
 //#define DEBUG
-//#define EVAL
+#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -177,8 +177,12 @@ Quaternion *qsn1[2] = { &qsn1R, &qsn1L };
 Quaternion *qsn[2] = { &qsnR, &qsnL };  //(Debugging)
 Quaternion dqR, dqL;
 Quaternion dq[2] = { dqR, dqL };
-int cw, cx, cy, cz;
-int c[4] = { cw, cx, cy, cz };  //subsequent spike counter
+int cwr, cxr, cyr, czr;
+int cwl, cxl, cyl, czl;
+int cr[4] = { cwr, cxr, cyr, czr };  //subsequent spike counter
+int cl[4] = { cwl, cxl, cyl, czl };  //subsequent spike counter
+int *c[2] = { cr, cl };
+
 float dif_R[4], dif_L[4];
 float *dif[2] = { dif_R, dif_L };
 
@@ -299,19 +303,18 @@ void loop() {
 
   //---------------------Get Quaternion Data-------------------------------
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-    if (i == ADR) {
-
-    } else if (i == ADL) {
-      digitalWrite(AD0R, HIGH);  //I2C address 0x69
-      digitalWrite(AD0L, LOW);   //I2C Address 0x68
-    } else {
-      return;
-    }
+    // if (i == ADR)
+    // } else if (i == ADL) {
+    //   digitalWrite(AD0R, HIGH);  //I2C address 0x69
+    //   digitalWrite(AD0L, LOW);   //I2C Address 0x68
+    // } else {
+    //   return;
+    // }
     //Acquire Data from IMU sensor
     readIMU(qxn[i], i);
 
     //Spike Filter
-    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i]);
+    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i],i);
 
     //Filtering IMU data; Terminate outbreaks
     *qyn[i] = LPFilter(qsn[i], qxn1[i], qyn1[i]);
@@ -385,7 +388,7 @@ void loop() {
 #endif
 
 #ifdef EVAL
-  SerialPrintData(1);
+  SerialPrintData(7);
 #endif
 }
 

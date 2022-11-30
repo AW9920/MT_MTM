@@ -5,6 +5,9 @@ void SerialPrintData(int type) {
   //3 ->  "Hall sensor data for Monitor"
   //4 ->  "All Data for Monitor"
   //5 ->  "SpikeDetection_ready2plot"
+  //6 ->  "Processed encoder signals"
+  //7 ->  "Evaluation of Spike detection"
+  //8 ->  "Evaluation of LP filter"
 
   switch (type) {
     case 0:
@@ -33,8 +36,7 @@ void SerialPrintData(int type) {
       Serial.print("\t");
       Serial.print(qL.y, 4);
       Serial.print("\t");
-      Serial.print(qL.z, 4);
-      Serial.println("\t");
+      Serial.println(qL.z, 4);
       break;
 
     case 2:
@@ -145,6 +147,62 @@ void SerialPrintData(int type) {
       Serial.print(Enc2L_inc);  //Elbow
       Serial.print("\t");
       Serial.println(Enc3L_inc);  //Shoulder Yaw
+      break;
+
+    case 7:
+      //Right IMU; raw values
+      Serial.print(qxn[0]->w, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->x, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->y, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->z, 4);
+      Serial.print("\t");
+      //Right IMU; spike detected values
+      Serial.print(qsn[0]->w, 4);
+      Serial.print("\t");
+      Serial.print(qsn[0]->x, 4);
+      Serial.print("\t");
+      Serial.print(qsn[0]->y, 4);
+      Serial.print("\t");
+      Serial.println(qsn[0]->z, 4);
+      break;
+
+    case 8:
+      //Right IMU; raw values
+      Serial.print(qxn[0]->w, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->x, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->y, 4);
+      Serial.print("\t");
+      Serial.print(qxn[0]->z, 4);
+      Serial.print("\t");
+      //Right IMU; spike detected and LP filtered values
+      Serial.print(qyn[0]->w, 4);
+      Serial.print("\t");
+      Serial.print(qyn[0]->x, 4);
+      Serial.print("\t");
+      Serial.print(qyn[0]->y, 4);
+      Serial.print("\t");
+      Serial.println(qyn[0]->z, 4);
+      break;
+
+    case 9:
+      //Right encoders; raw values
+      Serial.print(*EncR_xn[0]);
+      Serial.print("\t");
+      Serial.print(*EncR_xn[1]);
+      Serial.print("\t");
+      Serial.print(*EncR_xn[2]);
+      Serial.print("\t");
+      //Right encoders; LP filtered and overflow detection
+      Serial.print(Enc1R_inc);  //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2R_inc);  //Elbow
+      Serial.print("\t");
+      Serial.println(Enc3R_inc);  //Shoulder Yaw
       break;
   }
 }

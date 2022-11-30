@@ -1,9 +1,9 @@
-Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
+Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d, int j) {
   //=======================================================
   //======            FUNCTION Variables            =======
   //=======================================================
-  int n = 1;      //counter until a spike is accepted as correct; Define zero to comfortably turn filter off
-  float T = 0.4;  //Threshold for which the raw value is replaced with the last safe value
+  int n = 3;      //counter until a spike is accepted as correct; Define zero to comfortably turn filter off
+  float T = 0.6;  //Threshold for which the raw value is replaced with the last safe value
 
   //Empty container for filtered values
   Quaternion q;
@@ -40,15 +40,15 @@ Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d) {
 
   // Look for unreasonable peaks that may indicate flaut received sensor data
   for (int i = 0; i < 4; i++) {
-    if (abs(dif[i]) > T && (c[i] < n)) {
+    if ((abs(dif[i]) > T) && (c[j][i] < n)) {
       // recent big change:  hold previous safe value
       yn[i] = yn1[i];
-      c[i] = c[i] + 1;
+      c[j][i] = c[j][i] + 1;
     } else {
       // normal operation, or else the recent big change must be real after all
       yn1[i] = xn[i];
       yn[i] = xn[i];
-      c[i] = 0;
+      c[j][i] = 0;
     }
   }
 
