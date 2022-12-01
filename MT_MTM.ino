@@ -104,14 +104,14 @@ MPU6050 mpuL(0x69);
 MPU6050 mpu[] = { mpuR, mpuL };
 
 /*-------------------OFFSET Encoder values----------------*/
-float const Enc1R_OFF = 1684;
-float const Enc2R_OFF = 2353;
-float const Enc3R_OFF = 1823;
+float const Enc1R_OFF = 1684; //1684;
+float const Enc2R_OFF = 2350; //2353; new 2350
+float const Enc3R_OFF = 1832; //1823; new 1832
 float EncR_OFF[3] = { Enc1R_OFF, Enc2R_OFF, Enc3R_OFF };
 
-float const Enc1L_OFF;
-float const Enc2L_OFF;
-float const Enc3L_OFF;
+float const Enc1L_OFF = 526;
+float const Enc2L_OFF = 1355;
+float const Enc3L_OFF = 3109;
 float EncL_OFF[3] = { Enc1L_OFF, Enc2L_OFF, Enc3L_OFF };
 
 /*--------------------OVERFLOW detection------------------*/
@@ -119,14 +119,14 @@ int temp_side = 0;
 int const high_lim = 2047;
 int const low_lim = -2048;
 int const gain = 4095;
-int countR1, countR2, countR3 = 0;
-int countL1, countL2, countL3 = 0;
+int countR1 = 0, countR2 = 0, countR3 = 0;
 int *countR[3] = { &countR1, &countR2, &countR3 };
+int countL1 = 0, countL2 = 0, countL3 = 0;
 int *countL[3] = { &countL1, &countL2, &countL3 };
-bool rolloverR1, rolloverR2, rolloverR3 = false;
-bool rolloverL1, rolloverL2, rolloverL3 = false;
-bool rollunderR1, rollunderR2, rollunderR3 = false;
-bool rollunderL1, rollunderL2, rollunderL3 = false;
+bool rolloverR1 = false, rolloverR2 = false, rolloverR3 = false;
+bool rolloverL1 = false, rolloverL2 = false, rolloverL3 = false;
+bool rollunderR1 = false, rollunderR2 = false, rollunderR3 = false;
+bool rollunderL1 = false, rollunderL2 = false, rollunderL3 = false;
 bool *rolloverR[3] = { &rolloverR1, &rolloverR2, &rolloverR3 };
 bool *rolloverL[3] = { &rolloverL1, &rolloverL2, &rolloverL3 };
 bool *rollunderR[3] = { &rollunderR1, &rollunderR2, &rollunderR3 };
@@ -303,13 +303,6 @@ void loop() {
 
   //---------------------Get Quaternion Data-------------------------------
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
-    // if (i == ADR)
-    // } else if (i == ADL) {
-    //   digitalWrite(AD0R, HIGH);  //I2C address 0x69
-    //   digitalWrite(AD0L, LOW);   //I2C Address 0x68
-    // } else {
-    //   return;
-    // }
     //Acquire Data from IMU sensor
     readIMU(qxn[i], i);
 
@@ -349,10 +342,10 @@ void loop() {
   //--------------Digitla low pas filter on encoder data-------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
     //----Overlow detection----
-    OverFlowDetection(EncR_xn[i], EncR_xn1[i], rolloverR[i], rollunderR[i], countR[i], i);
+    OverFlowDetection(EncR_xn[i], EncR_xn1[i], rolloverR[i], rollunderR[i], countR[i]);
 
     //-------LP filter---------
-    *EncR_yn[i] = LPFilter_Encoder(EncR_xn[i], EncR_xn1[i], EncR_yn1[i], rolloverR[i], rollunderR[i], i);
+    *EncR_yn[i] = LPFilter_Encoder(EncR_xn[i], EncR_xn1[i], EncR_yn1[i], rolloverR[i], rollunderR[i]);
 
     //Update values
     updateArray(EncR_xn1[i], EncR_xn[i]);
@@ -364,17 +357,17 @@ void loop() {
   }
   for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
     //----Overlow detection----
-    OverFlowDetection(EncL_xn[i], EncL_xn1[i], rolloverL[i], rollunderL[i], countL[i], i);
+    OverFlowDetection(EncL_xn[i], EncL_xn1[i], rolloverL[i], rollunderL[i], countL[i]);
 
     //-------LP filter---------
-    *EncL_yn[i] = LPFilter_Encoder(EncL_xn[i], EncL_xn1[i], EncL_yn1[i], rolloverL[i], rollunderL[i], i);
+    *EncL_yn[i] = LPFilter_Encoder(EncL_xn[i], EncL_xn1[i], EncL_yn1[i], rolloverL[i], rollunderL[i]);
 
     //Update values
     updateArray(EncL_xn1[i], EncL_xn[i]);
     updateArray(EncL_yn1[i], EncL_yn[i]);
 
     //Pack processed data into variables send over Serial Bus
-    *EncDataL_inc[i] = *EncL_yn[i] + *countL[i] * gain;  //- EncL_OFF[i]
+    *EncDataL_inc[i] = *EncL_yn[i] + *countL[i] * gain - EncL_OFF[i];
     updateArray(EncDataL[i], EncDataL_inc[i]);
   }
 
@@ -388,7 +381,7 @@ void loop() {
 #endif
 
 #ifdef EVAL
-  SerialPrintData(7);
+  SerialPrintData(12);
 #endif
 }
 

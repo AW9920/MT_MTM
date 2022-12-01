@@ -1,4 +1,4 @@
-float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1, bool* rollover, bool* rollunder, int i) {
+float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1, bool* rollover, bool* rollunder) {
   /*This function's purpose is to terminate high frequent outbreaks and further
     smooth the acquired sensor data
     yn  -- Filtered sensor data to compute
@@ -20,18 +20,18 @@ float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1, b
   float b1 = 0.2391;
 
   // Apply filter on extracted measured data
-  if (rollover[i] == false && rollunder[i] == false) {
+  if (*rollover == false && *rollunder == false) {
     yn = a1 * (float)*yn1 + b0 * (float)*xn + b1 * (float)*xn1;
 
-  } else if (rollover[i] == true && rollunder[i] == false) {  //Case Rollover: Shortly deactivate filter and update filter variables
+  } else if (*rollover == true && *rollunder == false) {  //Case Rollover: Shortly deactivate filter and update filter variables
     //Return unfiltered values
     yn = *xn;
-    rollover[i] = false;
+    *rollover = false;
     //Serial.println("Filter temporarily turned off");
 
-  } else if (rollover[i] == false && rollunder[i] == true) {
+  } else if (*rollover == false && *rollunder == true) {
     yn = *xn;
-    rollunder[i] = false;
+    *rollunder = false;
     //Serial.println("Filter temporarily turned off");
   }
 
