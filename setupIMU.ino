@@ -3,12 +3,11 @@ void setupIMU(unsigned int AD, int i) {
   // initialize Device
   mpu[i].initialize();
 
-  Serial.println(F("Testing device connections..."));
-  Serial.print("MPU6050 ");
-  Serial.print(i);
-  Serial.print(" ");
-  Serial.println(mpu[i].testConnection() ? F("connection successful") : F("connection failed"));
-
+  //Serial.println(F("Testing device connections..."));
+  //Serial.print("MPU6050 ");
+  //Serial.print(i);
+  //Serial.print(" ");
+  //Serial.println(mpu[i].testConnection() ? F("connection successful") : F("connection failed"));
   //Load and initialize the DMP
   devStatus = mpu[i].dmpInitialize();
 
@@ -41,7 +40,7 @@ void setupIMU(unsigned int AD, int i) {
     mpu[i].CalibrateGyro(6);
     mpu[i].PrintActiveOffsets();
 
-    Serial.println(F("Enabling DMP..."));
+    //Serial.println(F("Enabling DMP..."));
     mpu[i].setDMPEnabled(true);
     // set our DMP Ready flag so the main loop() function knows it's okay to use it
     dmpReady = true;
@@ -52,9 +51,9 @@ void setupIMU(unsigned int AD, int i) {
     // 1 = initial memory load failed
     // 2 = DMP configuration updates failed
     // (if it's going to break, usually the code will be 1)
-    Serial.print(F("DMP Initialization failed (code "));
-    Serial.print(devStatus);
-    Serial.println(F(")"));
+    //Serial.print(F("DMP Initialization failed (code "));
+    //Serial.print(devStatus);
+    //Serial.println(F(")"));
     //Serial.println("Error! Automatic device reset initialized!");
     //Cause Reset
     // digitalWrite(RESET, LOW);

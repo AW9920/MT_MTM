@@ -19,9 +19,9 @@
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-//#define RUN
+#define RUN
 //#define DEBUG
-#define EVAL
+//#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -104,9 +104,9 @@ MPU6050 mpuL(0x69);
 MPU6050 mpu[] = { mpuR, mpuL };
 
 /*-------------------OFFSET Encoder values----------------*/
-float const Enc1R_OFF = 1684; //1684;
-float const Enc2R_OFF = 2350; //2353; new 2350
-float const Enc3R_OFF = 1832; //1823; new 1832
+float const Enc1R_OFF = 1684;  //1684;
+float const Enc2R_OFF = 2350;  //2353; new 2350
+float const Enc3R_OFF = 1832;  //1823; new 1832
 float EncR_OFF[3] = { Enc1R_OFF, Enc2R_OFF, Enc3R_OFF };
 
 float const Enc1L_OFF = 526;
@@ -207,6 +207,7 @@ int HallL;
 /*----------------------------Other variables--------------------------------*/
 unsigned long currentTime;
 unsigned long samplingTime;
+bool sys_ready = false;
 
 // Encoder control/status vars. Unity calculates true angle
 /*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
@@ -286,11 +287,13 @@ void setup() {
   }
 
   //Initial definition of previous values
-  Serial.println("Initializing previous value variables!");
+  //Serial.println("Initializing previous value variables!");
   Initial_preVal_def();
 
 
-  Serial.println("Setup successful!");
+  //Serial.println("Setup successful!");
+  sys_ready = true;
+  Serial.println(sys_ready);
   delay(200);
 }
 
@@ -307,7 +310,7 @@ void loop() {
     readIMU(qxn[i], i);
 
     //Spike Filter
-    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i],i);
+    *qsn[i] = spikeDetection(qxn[i], qsn1[i], dif[i], i);
 
     //Filtering IMU data; Terminate outbreaks
     *qyn[i] = LPFilter(qsn[i], qxn1[i], qyn1[i]);
@@ -403,10 +406,10 @@ void sendData(void) {
   Serial.print("/");
   Serial.print(Enc1R);
   Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc2R);
-  Serial.print("/");  //Elbow
   Serial.print(Enc3R);
   Serial.print("/");  //Shoulder Yaw
+  Serial.print(Enc2R);
+  Serial.print("/");  //Elbow
   Serial.print(HallR);
   Serial.print(";");  //Delimiter ";" to distinguish left and right arm
 
@@ -423,10 +426,10 @@ void sendData(void) {
   Serial.print("/");
   Serial.print(Enc1L);
   Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc2L);
-  Serial.print("/");  //Elbow
   Serial.print(Enc3L);
-  Serial.print("/");      //Shoulder Yaw
+  Serial.print("/");  //Shoulder Yaw
+  Serial.print(Enc2L);
+  Serial.print("/");  //Elbow    
   Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
 }
 
