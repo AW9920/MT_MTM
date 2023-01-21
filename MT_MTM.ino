@@ -10,6 +10,8 @@
 #include "MPU6050_6Axis_MotionApps20.h"
 #include <stdfix.h>
 #include <math.h>
+#include <SoftwareSerial.h>
+#include <string.h>
 
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -19,9 +21,9 @@
 //=======================================================
 //======     Define RUN, DEBUG, EVALUATION        =======
 //=======================================================
-#define RUN
+//#define RUN
 //#define DEBUG
-//#define EVAL
+#define EVAL
 
 //=======================================================
 //======                 Makros                   =======
@@ -80,6 +82,9 @@
 #define MPU6050L_GYRO_OFFSET_Y -14
 #define MPU6050L_GYRO_OFFSET_Z 40
 
+// Math constants
+#define PI 3.1415926535897932384626433832795
+
 
 //=======================================================
 //======             GLOBAL VARIABLES             =======
@@ -103,10 +108,13 @@ MPU6050 mpuR(0x68);
 MPU6050 mpuL(0x69);
 MPU6050 mpu[] = { mpuR, mpuL };
 
+/*-------------------Serial Communication-----------------*/
+//SoftwareSerial SUART(0, 1);
+
 /*-------------------OFFSET Encoder values----------------*/
 float const Enc1R_OFF = 1684;  //1684;
 float const Enc2R_OFF = 2350;  //2353; new 2350
-float const Enc3R_OFF = 1832;  //1823; new 1832
+float const Enc3R_OFF = 1790;  //1823; new 1832
 float EncR_OFF[3] = { Enc1R_OFF, Enc2R_OFF, Enc3R_OFF };
 
 float const Enc1L_OFF = 526;
@@ -200,6 +208,34 @@ unsigned int ADDR[2] = {
   ADL   //Left IMU index 1
 };
 
+/*----------------------------Kinematic Variables-----------------------------*/
+//MTM
+double q1_m = 0, q2_m = 0, q3_m = 0, q4_m = 0, q5_m = 0, q6_m = 0, q7_m = 0;
+double q_mtm[7] = { q1_m, q2_m, q3_m, q4_m, q5_m, q6_m, q7_m };
+double x_m, y_m, z_m;
+double C_mtm[3] = { x_m, y_m, z_m };
+const double x_m_init = 262.5, y_m_init = -217.5, z_m_init = 8.7;
+double C_mtm_init[3] = { x_m_init, y_m_init, z_m_init };
+//PSM
+double q1_p = 0, q2_p = 0, q3_p = 0, q4_p = 0, q5_p = 0, q6_p = 0, q7_p = 0;
+double q_psm[7] = { q1_p, q2_p, q3_p, q4_p, q5_p, q6_p, q7_p };
+double x_p, y_p, z_p;
+double C_psm[3] = { x_p, y_p, z_p };
+const double x_p_init = 0, y_p_init = -56.51, z_p_init = 0;
+double C_psm_init[3] = { x_p_init, y_p_init, z_p_init };
+
+//General variables
+const double motion_scaler = 0.1;
+const double res_mag_enc = 0.0879;
+const double L1 = 45, L2 = 217.5, L3 = 8.7, H1 = 217.5, d0 = -23.49;
+
+//Wrist rotation variables
+double quatArray[4];
+double rotMat[9];
+double mat[3][3];
+double result[3][3];
+double mat1[3][3] = { { -1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, -1.0 } };
+
 /*---------------------------Hall Sensor variables---------------------------*/
 int HallR;
 int HallL;
@@ -208,6 +244,16 @@ int HallL;
 unsigned long currentTime;
 unsigned long samplingTime;
 bool sys_ready = false;
+
+/*-------------------------Receive Data variable-----------------------------*/
+const byte numChars = 32;  //32
+char receivedChars[numChars];
+char tempChars[numChars];  // temporary array for use when parsing
+//variables to temp hold the parsed data
+char messageFromPC[numChars] = { 0 };
+int integerFromPC = 0;
+float floatFromPC = 0.0;
+boolean newData = false;
 
 // Encoder control/status vars. Unity calculates true angle
 /*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
@@ -278,7 +324,8 @@ void setup() {
 #endif
   //Set Baudrate at 115200 Bps
   Serial.begin(115200);
-  while (!Serial) {};  // wait for Leonardo enumeration, others continue immediately
+  while (!Serial) {};
+  Serial2.begin(115200);
 
   //Setup IMUs
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
@@ -328,6 +375,13 @@ void loop() {
 
     //Pack processed data into variables send over Serial Bus
     UpdateQuat(q[i], qyn[i]);
+    // Serial.print(qR.w);
+    // Serial.print('\t');
+    // Serial.print(qR.x);
+    // Serial.print('\t');
+    // Serial.print(qR.y);
+    // Serial.print('\t');
+    // Serial.println(qR.z);
   }
 
   //-----------------------Get Encoder Data Right-------------------------------
@@ -373,24 +427,253 @@ void loop() {
     *EncDataL_inc[i] = *EncL_yn[i] + *countL[i] * gain - EncL_OFF[i];
     updateArray(EncDataL[i], EncDataL_inc[i]);
   }
+  // Serial.print(*EncR_yn[0]);
+  // Serial.print('\t');
+  // Serial.print(*EncR_yn[1]);
+  // Serial.print('\t');
+  // Serial.println(*EncR_yn[2]);
 
   //Get Hall Sensor data
   HallR = analogRead(HDOR);
+  //Serial.println(q7_p);
   HallL = analogRead(HDOL);
+
+  //-----------------------Convert to real angle values-------------------------------
+  q_mtm[0] = double(*EncDataR[0]) * res_mag_enc * PI / 180.0;   //Convert 2 rad
+  q_mtm[1] = -double(*EncDataR[2]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
+  q_mtm[2] = -double(*EncDataR[1]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
+  // To-Do: Convert to real angle values
+  // Serial.print(q_mtm[0] * 180 / PI);
+  // Serial.print('\t');
+  // Serial.print(q_mtm[1] * 180 / PI);
+  // Serial.print('\t');
+  // Serial.println(q_mtm[2] * 180 / PI);
+
+  //-----------------------Compute planned trajectory---------------------------------
+  // To-Do: Compute desired position of PSM in task space
+  x_m = L1 * cos(q_mtm[0]) + L2 * cos(q_mtm[0]) * cos(q_mtm[1]) - L3 * cos(q_mtm[0]) * sin(q_mtm[1]) - H1 * sin(q_mtm[0]) * sin(q_mtm[2] - PI / 2) + H1 * cos(q_mtm[0]) * cos(q_mtm[1]) * cos(q_mtm[2] - PI / 2);
+  y_m = L1 * sin(q_mtm[0]) + L2 * cos(q_mtm[1]) * sin(q_mtm[0]) + H1 * cos(q_mtm[0]) * sin(q_mtm[2] - PI / 2) - L3 * sin(q_mtm[0]) * sin(q_mtm[1]) + H1 * cos(q_mtm[1]) * cos(q_mtm[2] - PI / 2) * sin(q_mtm[0]);
+  z_m = L3 * cos(q_mtm[1]) + L2 * sin(q_mtm[1]) + H1 * cos(q_mtm[2] - PI / 2) * sin(q_mtm[1]);
+  C_mtm[0] = x_m;
+  C_mtm[1] = y_m;
+  C_mtm[2] = z_m;
+  // Serial.print(x_m);
+  // Serial.print('\t');
+  // Serial.print(y_m);
+  // Serial.print('\t');
+  // Serial.println(z_m);
+
+  //Compute trajectory
+  double d_x = x_m - x_m_init;
+  double d_y = y_m - y_m_init;
+  double d_z = z_m - z_m_init;
+  x_p = x_p_init + motion_scaler * d_x;
+  y_p = y_p_init + motion_scaler * d_y;
+  z_p = z_p_init + motion_scaler * d_z;
+
+  //-------------------Compute desired joint values 1, 2 & 3 for PSM---------------------------
+  // To-Do: Conduct inverse Kinematics
+  int sign = 0;
+  if (y_p < 0) {
+    sign = 1;
+  } else if (y_p >= 0) {
+    sign = -1;
+  }
+  //Compute desired q3 of PSM
+  q3_p = sign * sqrt(sq(x_p) + sq(y_p) + sq(z_p)) - d0;
+  //Compute desired q2 of PSM
+  double s2 = -x_p / (d0 + q3_p);
+  double c2 = sqrt(1 - sq(s2));
+  q2_p = atan2(s2, c2);
+  if ((q2_p <= (-PI / 2)) || (q2_p >= (PI / 2))) {
+    q2_p = atan2(s2, -c2);
+  }
+  q2_p *= (180 / PI);
+  //Compute desired q1 of PSM
+  double b = c2 * (q3_p + d0);
+  double a = -b;
+  double c = y_p + z_p;
+  q1_p = atan2(b, a) + atan2(sqrt(sq(a) + sq(b) - sq(c)), c);
+  if ((q1_p <= (-PI / 2)) || (q1_p >= (PI / 2))) {
+    q1_p = atan2(b, a) - atan2(sqrt(sq(a) + sq(b) - sq(c)), c);
+  }
+  q1_p *= (180 / PI);
+
+  //-------------------Compute desired joint values 4, 5 & 6 for PSM---------------------------
+  //Right MTM
+  double s5, c5, s4, c4, s6, c6;
+  quaternionToArray(qR, quatArray);
+  quatToRotMat(quatArray, rotMat);
+  arrayToMatrix(rotMat, mat);
+  matrixMult(mat1, mat, result);
+  s5 = result[2][1];
+  c5 = sqrt(sq(result[0][1]) + sq(result[1][1]));
+  q5_m = atan2(s5, c5);
+  if ((q5_m <= (-PI / 2)) || (q5_m >= (PI / 2))) {
+    q5_m = atan2(s5, -c5);
+  }
+  q5_m *= (180 / PI);
+
+  if (q5_m != 90.0) {
+    s4 = -result[0][1] / c5;
+    c4 = result[1][1] / c5;
+    q4_m = atan2(s4, c4);
+    q4_m *= (180.0 / PI);
+  } else {
+    q4_m = 0.0;
+  }
+
+  if (q5_m == 90.0) {
+    s6 = result[1][0];
+    c6 = result[1][2];
+    q6_m = atan2(s6, c6);
+    q6_m *= (180.0 / PI);
+  } else if (q5_m == -90.0) {
+    s6 = result[1][0];
+    c6 = result[1][2];
+    q6_m = -atan2(s6, c6);
+    q6_m *= (180.0 / PI);
+  } else {
+    s6 = -result[2][0] / c5;
+    c6 = -result[2][2] / c5;
+    q6_m = atan2(s6, c6);
+    q6_m *= (180.0 / PI);
+  }
+
+  q7_m = 1.261157 + (53481730 - 1.261157) / (1 + pow((HallR / 84.42502), 8.110327));
+
+  // Remap values to PSM
+  q4_p = q6_m;  //PSM Roll
+  q5_p = q5_m;  //PSM Pitch
+  q6_p = q4_m;  //PSM Yaw
+  q7_p = -2*(q7_m-1.37);
+
+  // Serial.print(qR.w, 4);
+  // Serial.print("\t");
+  // Serial.print(qR.x, 4);
+  // Serial.print("\t");
+  // Serial.print(qR.y, 4);
+  // Serial.print("\t");
+  // Serial.print(qR.z, 4);
+  // Serial.print("\t");
+  // Serial.print(q4_p);  //Roll
+  // Serial.print('\t');
+  // Serial.print(q5_p);  //Pitch
+  // Serial.print('\t');
+  // Serial.println(q6_p);  //Yaw
+
+  // Serial.print(q4_m);  //Yaw
+  // Serial.print('\t');
+  // Serial.print(q5_m);  //Pitch
+  // Serial.print('\t');
+  // Serial.println(q6_m);  //Roll
+
+  /*//Left MTM
+  quaternionToArray(qL, quatArray);
+  quatToRotMat(quatArray, rotMat);
+  arrayToMatrix(rotMat, mat);*/
+  //-----------------------Send data over UART---------------------------------
+  String buffer = "";
+  buffer = compData(q1_p, q2_p, q3_p, q4_p, q5_p, q6_p, q7_p, 2);
+  //Check if enough bytes are available for writing
+  int dataSize = buffer.length();
+  if (Serial2.availableForWrite() >= dataSize) {
+    Serial2.println(buffer);
+    //Serial.println(buffer);
+  } else {
+    Serial.println("Serial2 buffer is full. Data not sent.");
+  }
 
 #ifdef RUN
   //Call Data Send function
-  sendData();
+  //sendData();
 #endif
 
 #ifdef EVAL
-  SerialPrintData(12);
+  //SerialPrintData(4);
 #endif
 }
 
 //=======================================================
 //======               Functions                  =======
 //=======================================================
+
+String compData(double in_value1, double in_value2, double in_value3, double in_value4, double in_value5, double in_value6, double in_value7, byte signi) {
+  char buffer[50];
+  String serialData;
+
+  dtostrf(in_value1, 0, 2, buffer);
+  serialData = "<";
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value2, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value3, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value4, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value5, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value6, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ",";
+  dtostrf(in_value7, 0, 2, buffer);
+  serialData += buffer;
+  serialData += ">";
+
+  return serialData;
+}
+
+void quatToRotMat(double quat[4], double rotMat[9]) {
+  double x2 = quat[0] * quat[0];
+  double y2 = quat[1] * quat[1];
+  double z2 = quat[2] * quat[2];
+  double xy = quat[0] * quat[1];
+  double xz = quat[0] * quat[2];
+  double yz = quat[1] * quat[2];
+  double wx = quat[3] * quat[0];
+  double wy = quat[3] * quat[1];
+  double wz = quat[3] * quat[2];
+
+  rotMat[0] = 1.0 - 2.0 * (y2 + z2);
+  rotMat[1] = 2.0 * (xy - wz);
+  rotMat[2] = 2.0 * (xz + wy);
+  rotMat[3] = 2.0 * (xy + wz);
+  rotMat[4] = 1.0 - 2.0 * (x2 + z2);
+  rotMat[5] = 2.0 * (yz - wx);
+  rotMat[6] = 2.0 * (xz - wy);
+  rotMat[7] = 2.0 * (yz + wx);
+  rotMat[8] = 1.0 - 2.0 * (x2 + y2);
+}
+
+void arrayToMatrix(double arr[9], double mat[3][3]) {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      mat[i][j] = arr[i * 3 + j];
+    }
+  }
+}
+
+void matrixMult3(double mat1[3][3], double mat2[3][3], double mat3[3][3], double result[3][3]) {
+  double temp[3][3];
+  matrixMult(mat1, mat2, temp);
+  matrixMult(temp, mat3, result);
+}
+
+void matrixMult(double mat1[3][3], double mat2[3][3], double result[3][3]) {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      result[i][j] = 0;
+      for (int k = 0; k < 3; k++) {
+        result[i][j] += mat1[i][k] * mat2[k][j];
+      }
+    }
+  }
+}
 
 void sendData(void) {
   // Right Arm Motion Data
@@ -429,7 +712,7 @@ void sendData(void) {
   Serial.print(Enc3L);
   Serial.print("/");  //Shoulder Yaw
   Serial.print(Enc2L);
-  Serial.print("/");  //Elbow    
+  Serial.print("/");      //Elbow
   Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
 }
 
@@ -490,14 +773,11 @@ void UpdateQwF(Quaternion *q, float *q_val) {
   return;
 }
 
-float *Quat2floatArr(Quaternion *q) {
-  static float Q_f[4];
-  Q_f[0] = q->w;
-  Q_f[1] = q->x;
-  Q_f[2] = q->y;
-  Q_f[3] = q->z;
-
-  return Q_f;
+void quaternionToArray(Quaternion quat, double arr[4]) {
+  arr[0] = quat.x;
+  arr[1] = quat.y;
+  arr[2] = quat.z;
+  arr[3] = quat.w;
 }
 
 void updateArray(float *arr1, float *arr2) {

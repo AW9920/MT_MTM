@@ -13,7 +13,7 @@ Quaternion LPFilter(Quaternion* qxn, Quaternion* qxn1, Quaternion* qyn1) {
   //======            FUNCTION Variables            =======
   //=======================================================
   Quaternion qyn;      //Empty container for filtered quaterion
-  bool enable = true;  //Enabling LP Filter (Debugging)
+  bool enable = false;  //Enabling LP Filter (Debugging)
   // coefficients for constant coefficient differential equation
   float a1 = 0.8945;
   float b0 = 0.0528;

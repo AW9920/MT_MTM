@@ -11,30 +11,29 @@ void setupIMU(unsigned int AD, int i) {
   //Load and initialize the DMP
   devStatus = mpu[i].dmpInitialize();
 
-  //Adjust Offset Values
-  if (AD == ADR) {
-    mpu[i].setXAccelOffset(MPU6050R_ACCEL_OFFSET_X);
-    mpu[i].setYAccelOffset(MPU6050R_ACCEL_OFFSET_Y);
-    mpu[i].setZAccelOffset(MPU6050R_ACCEL_OFFSET_Z);
-    mpu[i].setXGyroOffset(MPU6050R_GYRO_OFFSET_X);
-    mpu[i].setYGyroOffset(MPU6050R_GYRO_OFFSET_Y);
-    mpu[i].setZGyroOffset(MPU6050R_GYRO_OFFSET_Z);
-  }
-
-  else if (AD == ADL) {
-    mpu[i].setXAccelOffset(MPU6050L_ACCEL_OFFSET_X);
-    mpu[i].setYAccelOffset(MPU6050L_ACCEL_OFFSET_Y);
-    mpu[i].setZAccelOffset(MPU6050L_ACCEL_OFFSET_Z);
-    mpu[i].setXGyroOffset(MPU6050L_GYRO_OFFSET_X);
-    mpu[i].setYGyroOffset(MPU6050L_GYRO_OFFSET_Y);
-    mpu[i].setZGyroOffset(MPU6050L_GYRO_OFFSET_Z);
-  }
-
-  else {
-    return;
-  }
-
   if (devStatus == 0) {
+    //Adjust Offset Values
+    /*if (AD == ADR) {
+      mpu[i].setXAccelOffset(MPU6050R_ACCEL_OFFSET_X);
+      mpu[i].setYAccelOffset(MPU6050R_ACCEL_OFFSET_Y);
+      mpu[i].setZAccelOffset(MPU6050R_ACCEL_OFFSET_Z);
+      mpu[i].setXGyroOffset(MPU6050R_GYRO_OFFSET_X);
+      mpu[i].setYGyroOffset(MPU6050R_GYRO_OFFSET_Y);
+      mpu[i].setZGyroOffset(MPU6050R_GYRO_OFFSET_Z);
+    }
+
+    else if (AD == ADL) {
+      mpu[i].setXAccelOffset(MPU6050L_ACCEL_OFFSET_X);
+      mpu[i].setYAccelOffset(MPU6050L_ACCEL_OFFSET_Y);
+      mpu[i].setZAccelOffset(MPU6050L_ACCEL_OFFSET_Z);
+      mpu[i].setXGyroOffset(MPU6050L_GYRO_OFFSET_X);
+      mpu[i].setYGyroOffset(MPU6050L_GYRO_OFFSET_Y);
+      mpu[i].setZGyroOffset(MPU6050L_GYRO_OFFSET_Z);
+    }
+
+    else {
+      return;
+    }*/
     // Calibration Time: generate offsets and calibrate our MPU6050
     mpu[i].CalibrateAccel(6);
     mpu[i].CalibrateGyro(6);

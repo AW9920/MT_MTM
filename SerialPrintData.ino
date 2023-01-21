@@ -252,5 +252,19 @@ void SerialPrintData(int type) {
       Serial.print("\t");
       Serial.println(Enc3L_inc);  //Shoulder Yaw
       break;
+
+      case 13: //Coodinates MTM / PSM
+      Serial.print(C_mtm[0]);
+      Serial.print("\t");
+      Serial.print(C_mtm[1]);
+      Serial.print("\t");
+      Serial.print(C_mtm[2]);
+      Serial.print("\t");
+      Serial.print(C_psm[0]); 
+      Serial.print("\t");
+      Serial.print(C_psm[1]);
+      Serial.print("\t");
+      Serial.println(C_psm[2]);
+      break;
   }
 }
