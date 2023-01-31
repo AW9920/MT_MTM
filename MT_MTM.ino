@@ -8,6 +8,8 @@
 //#include <avr/wdt.h>  //Watchdog Timer Library
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
+//#include "MPU6050.h"
+#include <helper_3dmath.h>
 #include <stdfix.h>
 #include <math.h>
 #include <SoftwareSerial.h>
@@ -24,6 +26,12 @@
 //#define RUN
 //#define DEBUG
 #define EVAL
+
+//=======================================================
+//======    Define DMP or Complement filter       =======
+//=======================================================
+#define DMP
+//#define COMP
 
 //=======================================================
 //======                 Makros                   =======
@@ -57,6 +65,9 @@
 #define HDOR 0  // Analog Input 0 (Hall Sensor)
 #define HDOL 1
 
+#define MPU_ADDR_R 0x68
+#define MPU_ADDR_L 0x69
+
 /* Old IMU Calc Data
   //Define Calibration Values for IMU right which yielded best results
   #define MPU6050_ACCEL_OFFSET_X -3954
@@ -66,21 +77,38 @@
   #define MPU6050_GYRO_OFFSET_Y  -28
   #define MPU6050_GYRO_OFFSET_Z  26
 */
-//Define Calibration Values for IMU right which yielded best results
-#define MPU6050R_ACCEL_OFFSET_X -3616
-#define MPU6050R_ACCEL_OFFSET_Y -1092
-#define MPU6050R_ACCEL_OFFSET_Z 902
-#define MPU6050R_GYRO_OFFSET_X 52
-#define MPU6050R_GYRO_OFFSET_Y -188
-#define MPU6050R_GYRO_OFFSET_Z 32
+// //Define Calibration Values for IMU right which yielded best results (Main)
+// #define MPU6050R_ACCEL_OFFSET_X -3616
+// #define MPU6050R_ACCEL_OFFSET_Y -1092
+// #define MPU6050R_ACCEL_OFFSET_Z 902
+// #define MPU6050R_GYRO_OFFSET_X 52
+// #define MPU6050R_GYRO_OFFSET_Y -188
+// #define MPU6050R_GYRO_OFFSET_Z 32
 
-//Define Calibration Values for IMU left which yielded best results
+//Define Calibration Values for IMU left which yielded best results (Irrelevant for now)
 #define MPU6050L_ACCEL_OFFSET_X -788
 #define MPU6050L_ACCEL_OFFSET_Y 1417
 #define MPU6050L_ACCEL_OFFSET_Z 998
 #define MPU6050L_GYRO_OFFSET_X 37
 #define MPU6050L_GYRO_OFFSET_Y -14
 #define MPU6050L_GYRO_OFFSET_Z 40
+
+// -------------------------Calibration in horizontal-----------------------------
+//Define Calibration Values for IMU right in horizontal position (Main)
+#define MPU6050R_ACCEL_OFFSET_X -818
+#define MPU6050R_ACCEL_OFFSET_Y 1453
+#define MPU6050R_ACCEL_OFFSET_Z 992
+#define MPU6050R_GYRO_OFFSET_X 33
+#define MPU6050R_GYRO_OFFSET_Y -12
+#define MPU6050R_GYRO_OFFSET_Z 37
+
+// //Define Calibration Values for IMU left in horizontal position (Irrelevant for now)
+// #define MPU6050L_ACCEL_OFFSET_X -5436
+// #define MPU6050L_ACCEL_OFFSET_Y -989
+// #define MPU6050L_ACCEL_OFFSET_Z 2798
+// #define MPU6050L_GYRO_OFFSET_X 71
+// #define MPU6050L_GYRO_OFFSET_Y -180
+// #define MPU6050L_GYRO_OFFSET_Z 26
 
 // Math constants
 #define PI 3.1415926535897932384626433832795
@@ -149,6 +177,8 @@ int *EncDataL_inc[3] = { &Enc1L_inc, &Enc2L_inc, &Enc3L_inc };
 //Quaternion array --> q = [w, x, y, z]
 Quaternion qR, qL;  //current raw quaternion container; left / right IMU
 Quaternion *q[2] = { &qR, &qL };
+Quaternion pR = { 0.7044, -0.0001, -0.7098, -0.0027 }, pL = { 1, 0, 0, 0 };
+Quaternion p[2] = { pR, pL };
 
 /*----------------------Variables for Low-Pass Filter-------------------------*/
 //Quaternion Data
@@ -255,6 +285,25 @@ int integerFromPC = 0;
 float floatFromPC = 0.0;
 boolean newData = false;
 
+/*----------------------Estimation by Accel & Gyro----------------------------*/
+int16_t AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;  // Acceleration, temperature and angular velocity for each axis
+
+double angleAcX, angleAcY, angleAcZ;
+double angleGyX, angleGyY, angleGyZ;
+double angleFilX, angleFilY, angleFilZ;  // filtered angles
+const double RADIAN_TO_DEGREE = 180 / 3.14159;
+const double DEG_PER_SEC = 32767 / 250;  // rotating angle per second 250 degree // GyX, GyY, GyZ range  : -32768 ~ +32767
+const double ALPHA = 0.65;               // 0.96 //0.6
+
+unsigned long now = 0;   // current time
+unsigned long past = 0;  // previous time
+double dt = 0;
+
+double averAcX, averAcY, averAcZ;
+double averGyX, averGyY, averGyZ;
+
+/*--------------------------------Latency------------------------------------*/
+unsigned long send_time;
 // Encoder control/status vars. Unity calculates true angle
 /*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
   float angle_res = (float)FSR / (float)bit_res;*/
@@ -327,21 +376,30 @@ void setup() {
   while (!Serial) {};
   Serial2.begin(115200);
 
+#ifdef DMP
   //Setup IMUs
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     //Serial.println(ADDR[i]);
     setupIMU(ADDR[i], i);
   }
-
+  //while (true) {};
   //Initial definition of previous values
   //Serial.println("Initializing previous value variables!");
   Initial_preVal_def();
+  sys_ready = true;
+  delay(200);
+#endif
 
+#if COMP
+  initSensor();
+  Initcalib();
+  Serial.begin(115200);
+  sys_ready = true;
+  delay(200);
+  past = millis();  // save the current time in past
+#endif
 
   //Serial.println("Setup successful!");
-  sys_ready = true;
-  Serial.println(sys_ready);
-  delay(200);
 }
 
 //=======================================================
@@ -351,6 +409,7 @@ void loop() {
   // Update current Time at begin of sensor data sampling
   currentTime = millis();
 
+#ifdef DMP
   //---------------------Get Quaternion Data-------------------------------
   for (unsigned int i = 0; i < sizeof(q) / sizeof(unsigned int); i++) {
     //Acquire Data from IMU sensor
@@ -362,6 +421,10 @@ void loop() {
     //Filtering IMU data; Terminate outbreaks
     *qyn[i] = LPFilter(qsn[i], qxn1[i], qyn1[i]);
 
+    //Rotate along offset;
+    Quaternion t;
+    t = p[i].getProduct(qyn[i]->getConjugate()).getConjugate();
+    *qyn[i] = t;
     //Cap the quaternions received
     qyn[i]->w = constrain(qyn[i]->w, -1, 1);
     qyn[i]->x = constrain(qyn[i]->x, -1, 1);
@@ -375,14 +438,38 @@ void loop() {
 
     //Pack processed data into variables send over Serial Bus
     UpdateQuat(q[i], qyn[i]);
-    // Serial.print(qR.w);
-    // Serial.print('\t');
-    // Serial.print(qR.x);
-    // Serial.print('\t');
-    // Serial.print(qR.y);
-    // Serial.print('\t');
-    // Serial.println(qR.z);
   }
+  // Serial.print(qR.x, 4);
+  // Serial.print('\t');
+  // Serial.print(qR.y, 4);
+  // Serial.print('\t');
+  // Serial.print(qR.z, 4);
+  // Serial.print('\t');
+  // Serial.println(qR.w, 4);
+#endif
+
+#ifdef COMP
+  readRawData();
+  getDT();
+
+  //////////// angles from Accelration
+  angleAcX = atan(AcY / sqrt(pow(AcX, 2) + pow(AcZ, 2)));
+  angleAcX *= RADIAN_TO_DEGREE;
+  angleAcY = atan(-AcX / sqrt(pow(AcY, 2) + pow(AcZ, 2)));
+  angleAcY *= RADIAN_TO_DEGREE;
+
+  //////////// angles from Gyroscope
+  angleGyX += ((GyX - averGyX) / DEG_PER_SEC) * dt;
+  angleGyY += ((GyY - averGyY) / DEG_PER_SEC) * dt;
+  angleGyZ += ((GyZ - averGyZ) / DEG_PER_SEC) * dt;
+
+  double angleTmpX = angleFilX + angleGyX * dt;
+  double angleTmpY = angleFilY + angleGyY * dt;
+  double angleTmpZ = angleFilZ + angleGyZ * dt;
+  angleFilX = ALPHA * angleTmpX + (1.0 - ALPHA) * angleAcX;
+  angleFilY = ALPHA * angleTmpY + (1.0 - ALPHA) * angleAcY;
+  angleFilZ = angleGyZ;  //
+#endif
 
   //-----------------------Get Encoder Data Right-------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
@@ -433,7 +520,7 @@ void loop() {
   // Serial.print('\t');
   // Serial.println(*EncR_yn[2]);
 
-  //Get Hall Sensor data
+  //---------------------------Get Hall Sensor data-----------------------------------
   HallR = analogRead(HDOR);
   //Serial.println(q7_p);
   HallL = analogRead(HDOL);
@@ -499,7 +586,8 @@ void loop() {
   }
   q1_p *= (180 / PI);
 
-  //-------------------Compute desired joint values 4, 5 & 6 for PSM---------------------------
+//-------------------Compute desired joint values 4, 5 & 6 for PSM---------------------------
+#ifdef DMP
   //Right MTM
   double s5, c5, s4, c4, s6, c6;
   quaternionToArray(qR, quatArray);
@@ -544,10 +632,17 @@ void loop() {
 
   // Remap values to PSM
   q4_p = q6_m;  //PSM Roll
-  q5_p = q5_m;  //PSM Pitch
-  q6_p = q4_m;  //PSM Yaw
-  q7_p = -2*(q7_m-1.37);
+  q5_p = q4_m;  //PSM Pitch
+  q6_p = q5_m;  //PSM Yaw
+  q7_p = -2 * (q7_m - 1.37);
 
+  // Serial.print(q4_m);  //Pitch
+  // Serial.print('\t');
+  // Serial.print(q5_m);  //Yaw
+  // Serial.print('\t');
+  // Serial.println(q6_m);  //Roll
+
+  //Debugging
   // Serial.print(qR.w, 4);
   // Serial.print("\t");
   // Serial.print(qR.x, 4);
@@ -561,25 +656,17 @@ void loop() {
   // Serial.print(q5_p);  //Pitch
   // Serial.print('\t');
   // Serial.println(q6_p);  //Yaw
+#endif
 
-  // Serial.print(q4_m);  //Yaw
-  // Serial.print('\t');
-  // Serial.print(q5_m);  //Pitch
-  // Serial.print('\t');
-  // Serial.println(q6_m);  //Roll
-
-  /*//Left MTM
-  quaternionToArray(qL, quatArray);
-  quatToRotMat(quatArray, rotMat);
-  arrayToMatrix(rotMat, mat);*/
   //-----------------------Send data over UART---------------------------------
   String buffer = "";
-  buffer = compData(q1_p, q2_p, q3_p, q4_p, q5_p, q6_p, q7_p, 2);
+  send_time = millis();
+  buffer = compData(q1_p, q2_p, q3_p, q4_p, q5_p, q6_p, q7_p, send_time, 2);
   //Check if enough bytes are available for writing
   int dataSize = buffer.length();
   if (Serial2.availableForWrite() >= dataSize) {
     Serial2.println(buffer);
-    //Serial.println(buffer);
+    Serial.println(buffer);
   } else {
     Serial.println("Serial2 buffer is full. Data not sent.");
   }
@@ -597,9 +684,8 @@ void loop() {
 //=======================================================
 //======               Functions                  =======
 //=======================================================
-
-String compData(double in_value1, double in_value2, double in_value3, double in_value4, double in_value5, double in_value6, double in_value7, byte signi) {
-  char buffer[50];
+String compData(double in_value1, double in_value2, double in_value3, double in_value4, double in_value5, double in_value6, double in_value7, unsigned long time, byte signi) {
+  char buffer[81];
   String serialData;
 
   dtostrf(in_value1, 0, 2, buffer);
@@ -623,9 +709,24 @@ String compData(double in_value1, double in_value2, double in_value3, double in_
   serialData += ",";
   dtostrf(in_value7, 0, 2, buffer);
   serialData += buffer;
+  serialData += ",";
+  ltoa(time, buffer, 10);
+  serialData += buffer;
   serialData += ">";
 
   return serialData;
+}
+
+void euler_to_rotation_matrix(float roll, float pitch, float yaw, float R[3][3]) {
+  R[0][0] = cos(yaw) * cos(pitch);
+  R[0][1] = cos(yaw) * sin(pitch) * sin(roll) - sin(yaw) * cos(roll);
+  R[0][2] = cos(yaw) * sin(pitch) * cos(roll) + sin(yaw) * sin(roll);
+  R[1][0] = sin(yaw) * cos(pitch);
+  R[1][1] = sin(yaw) * sin(pitch) * sin(roll) + cos(yaw) * cos(roll);
+  R[1][2] = sin(yaw) * sin(pitch) * cos(roll) - cos(yaw) * sin(roll);
+  R[2][0] = -sin(pitch);
+  R[2][1] = cos(pitch) * sin(roll);
+  R[2][2] = cos(pitch) * cos(roll);
 }
 
 void quatToRotMat(double quat[4], double rotMat[9]) {
@@ -814,4 +915,55 @@ void serialFlush() {
   while (Serial.available() > 0) {
     char t = Serial.read();
   }
+}
+
+void getDT() {  // loop cycle time calculation
+  now = millis();
+  dt = (now - past) / 1000.0;
+  past = now;
+}
+
+void Initcalib() {  // 10 time averaging  - initialization
+  double sumAcX = 0, sumAcY = 0, sumAcZ = 0;
+  double sumGyX = 0, sumGyY = 0, sumGyZ = 0;
+  readRawData();
+  for (int i = 0; i < 10; i++) {
+    readRawData();
+    sumAcX += AcX;
+    sumAcY += AcY;
+    sumAcZ += AcZ;
+    sumGyX += GyX;
+    sumGyY += GyY;
+    sumGyZ += GyZ;
+    delay(50);
+  }
+  averAcX = sumAcX / 10;
+  averAcY = sumAcY / 10;
+  averAcZ = sumAcY / 10;
+  averGyX = sumGyX / 10;
+  averGyY = sumGyY / 10;
+  averGyZ = sumGyZ / 10;
+}
+
+void initSensor() {
+  Wire.begin();
+  Wire.beginTransmission(MPU_ADDR_R);  // I2C address
+  Wire.write(0x6B);                    // Power Management Register 107, starting communication
+  Wire.write(0);                       // wakes up the MPU-6050
+  Wire.endTransmission(true);
+}
+
+void readRawData() {
+  Wire.beginTransmission(MPU_ADDR_R);
+  Wire.write(0x3B);  // AcX address
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_ADDR_R, 14, true);  // 14 Byte after AcX address
+
+  AcX = Wire.read() << 8 | Wire.read();  //Merging 2 Bytes by OR operator and the shift operators
+  AcY = Wire.read() << 8 | Wire.read();
+  AcZ = Wire.read() << 8 | Wire.read();
+  Tmp = Wire.read() << 8 | Wire.read();
+  GyX = Wire.read() << 8 | Wire.read();
+  GyY = Wire.read() << 8 | Wire.read();
+  GyZ = Wire.read() << 8 | Wire.read();
 }
