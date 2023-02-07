@@ -255,7 +255,9 @@ const double x_p_init = 0, y_p_init = -56.51, z_p_init = 0;
 double C_psm_init[3] = { x_p_init, y_p_init, z_p_init };
 
 //General variables
-const double motion_scaler = 0.1;
+const double motion_scaler_x = 0.05;
+const double motion_scaler_y = 0.25;
+const double motion_scaler_z = 0.05;
 const double res_mag_enc = 0.0879;
 const double L1 = 45, L2 = 217.5, L3 = 8.7, H1 = 217.5, d0 = -23.49;
 
@@ -554,9 +556,9 @@ void loop() {
   double d_x = x_m - x_m_init;
   double d_y = y_m - y_m_init;
   double d_z = z_m - z_m_init;
-  x_p = x_p_init + motion_scaler * d_x;
-  y_p = y_p_init + motion_scaler * d_y;
-  z_p = z_p_init + motion_scaler * d_z;
+  x_p = x_p_init + motion_scaler_x * d_x;
+  y_p = y_p_init + motion_scaler_y * d_y;
+  z_p = z_p_init + motion_scaler_z * d_z;
 
   //-------------------Compute desired joint values 1, 2 & 3 for PSM---------------------------
   // To-Do: Conduct inverse Kinematics
@@ -633,7 +635,7 @@ void loop() {
   // Remap values to PSM
   q4_p = q6_m;  //PSM Roll
   q5_p = q4_m;  //PSM Pitch
-  q6_p = q5_m;  //PSM Yaw
+  q6_p = -q5_m;  //PSM Yaw
   q7_p = -2 * (q7_m - 1.37);
 
   // Serial.print(q4_m);  //Pitch
