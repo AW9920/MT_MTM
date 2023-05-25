@@ -68,24 +68,7 @@
 #define MPU_ADDR_R 0x68
 #define MPU_ADDR_L 0x69
 
-/* Old IMU Calc Data
-  //Define Calibration Values for IMU right which yielded best results
-  #define MPU6050_ACCEL_OFFSET_X -3954
-  #define MPU6050_ACCEL_OFFSET_Y -4162
-  #define MPU6050_ACCEL_OFFSET_Z 1546
-  #define MPU6050_GYRO_OFFSET_X  84
-  #define MPU6050_GYRO_OFFSET_Y  -28
-  #define MPU6050_GYRO_OFFSET_Z  26
-*/
-// //Define Calibration Values for IMU right which yielded best results (Main)
-// #define MPU6050R_ACCEL_OFFSET_X -3616
-// #define MPU6050R_ACCEL_OFFSET_Y -1092
-// #define MPU6050R_ACCEL_OFFSET_Z 902
-// #define MPU6050R_GYRO_OFFSET_X 52
-// #define MPU6050R_GYRO_OFFSET_Y -188
-// #define MPU6050R_GYRO_OFFSET_Z 32
-
-//Define Calibration Values for IMU left which yielded best results (Irrelevant for now)
+//Define Calibration Values for IMU left in horizontal position
 #define MPU6050L_ACCEL_OFFSET_X -788
 #define MPU6050L_ACCEL_OFFSET_Y 1417
 #define MPU6050L_ACCEL_OFFSET_Z 998
@@ -94,7 +77,7 @@
 #define MPU6050L_GYRO_OFFSET_Z 40
 
 // -------------------------Calibration in horizontal-----------------------------
-//Define Calibration Values for IMU right in horizontal position (Main)
+//Define Calibration Values for IMU right in horizontal position
 #define MPU6050R_ACCEL_OFFSET_X -818
 #define MPU6050R_ACCEL_OFFSET_Y 1453
 #define MPU6050R_ACCEL_OFFSET_Z 992
@@ -102,23 +85,14 @@
 #define MPU6050R_GYRO_OFFSET_Y -12
 #define MPU6050R_GYRO_OFFSET_Z 37
 
-// //Define Calibration Values for IMU left in horizontal position (Irrelevant for now)
-// #define MPU6050L_ACCEL_OFFSET_X -5436
-// #define MPU6050L_ACCEL_OFFSET_Y -989
-// #define MPU6050L_ACCEL_OFFSET_Z 2798
-// #define MPU6050L_GYRO_OFFSET_X 71
-// #define MPU6050L_GYRO_OFFSET_Y -180
-// #define MPU6050L_GYRO_OFFSET_Z 26
 
 // Math constants
 #define PI 3.1415926535897932384626433832795
-
 
 //=======================================================
 //======             GLOBAL VARIABLES             =======
 //=======================================================
 /*--------Causes a Null Operation which has no effect-----*/
-//#define NOP __asm__ __volatile__ ("nop\n\t")        //Skip one single tick. 1NOP = 1tick = 62.5ns
 #define DELAY_CYCLES(n) __builtin_avr_delay_cycles(n)  //Skips n ticks. delay = n*62.5ns /n is integer
 unsigned int const delay_375ns = 6;
 unsigned int const delay_500ns = 8;
@@ -306,9 +280,6 @@ double averGyX, averGyY, averGyZ;
 
 /*--------------------------------Latency------------------------------------*/
 unsigned long send_time;
-// Encoder control/status vars. Unity calculates true angle
-/*int bit_res = 4096, FSR = 360;  //FSR = Full-Range-Scale    bit_res = Data Bits
-  float angle_res = (float)FSR / (float)bit_res;*/
 
 //=======================================================
 //======            FUNCTION DECLARATION          =======
@@ -384,9 +355,8 @@ void setup() {
     //Serial.println(ADDR[i]);
     setupIMU(ADDR[i], i);
   }
-  //while (true) {};
   //Initial definition of previous values
-  //Serial.println("Initializing previous value variables!");
+  Serial.println("Initializing previous value variables!");
   Initial_preVal_def();
   sys_ready = true;
   delay(200);
@@ -401,7 +371,7 @@ void setup() {
   past = millis();  // save the current time in past
 #endif
 
-  //Serial.println("Setup successful!");
+  Serial.println("Setup successful!");
 }
 
 //=======================================================
@@ -441,13 +411,6 @@ void loop() {
     //Pack processed data into variables send over Serial Bus
     UpdateQuat(q[i], qyn[i]);
   }
-  // Serial.print(qR.x, 4);
-  // Serial.print('\t');
-  // Serial.print(qR.y, 4);
-  // Serial.print('\t');
-  // Serial.print(qR.z, 4);
-  // Serial.print('\t');
-  // Serial.println(qR.w, 4);
 #endif
 
 #ifdef COMP
@@ -516,27 +479,15 @@ void loop() {
     *EncDataL_inc[i] = *EncL_yn[i] + *countL[i] * gain - EncL_OFF[i];
     updateArray(EncDataL[i], EncDataL_inc[i]);
   }
-  // Serial.print(*EncR_yn[0]);
-  // Serial.print('\t');
-  // Serial.print(*EncR_yn[1]);
-  // Serial.print('\t');
-  // Serial.println(*EncR_yn[2]);
 
   //---------------------------Get Hall Sensor data-----------------------------------
   HallR = analogRead(HDOR);
-  //Serial.println(q7_p);
   HallL = analogRead(HDOL);
 
   //-----------------------Convert to real angle values-------------------------------
   q_mtm[0] = double(*EncDataR[0]) * res_mag_enc * PI / 180.0;   //Convert 2 rad
   q_mtm[1] = -double(*EncDataR[2]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
   q_mtm[2] = -double(*EncDataR[1]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
-  // To-Do: Convert to real angle values
-  // Serial.print(q_mtm[0] * 180 / PI);
-  // Serial.print('\t');
-  // Serial.print(q_mtm[1] * 180 / PI);
-  // Serial.print('\t');
-  // Serial.println(q_mtm[2] * 180 / PI);
 
   //-----------------------Compute planned trajectory---------------------------------
   // To-Do: Compute desired position of PSM in task space
@@ -546,11 +497,6 @@ void loop() {
   C_mtm[0] = x_m;
   C_mtm[1] = y_m;
   C_mtm[2] = z_m;
-  // Serial.print(x_m);
-  // Serial.print('\t');
-  // Serial.print(y_m);
-  // Serial.print('\t');
-  // Serial.println(z_m);
 
   //Compute trajectory
   double d_x = x_m - x_m_init;
@@ -637,27 +583,6 @@ void loop() {
   q5_p = q4_m;  //PSM Pitch
   q6_p = -q5_m;  //PSM Yaw
   q7_p = -2 * (q7_m - 1.37);
-
-  // Serial.print(q4_m);  //Pitch
-  // Serial.print('\t');
-  // Serial.print(q5_m);  //Yaw
-  // Serial.print('\t');
-  // Serial.println(q6_m);  //Roll
-
-  //Debugging
-  // Serial.print(qR.w, 4);
-  // Serial.print("\t");
-  // Serial.print(qR.x, 4);
-  // Serial.print("\t");
-  // Serial.print(qR.y, 4);
-  // Serial.print("\t");
-  // Serial.print(qR.z, 4);
-  // Serial.print("\t");
-  // Serial.print(q4_p);  //Roll
-  // Serial.print('\t');
-  // Serial.print(q5_p);  //Pitch
-  // Serial.print('\t');
-  // Serial.println(q6_p);  //Yaw
 #endif
 
   //-----------------------Send data over UART---------------------------------
@@ -672,11 +597,6 @@ void loop() {
   } else {
     Serial.println("Serial2 buffer is full. Data not sent.");
   }
-
-#ifdef RUN
-  //Call Data Send function
-  //sendData();
-#endif
 
 #ifdef EVAL
   //SerialPrintData(4);
@@ -778,88 +698,6 @@ void matrixMult(double mat1[3][3], double mat2[3][3], double result[3][3]) {
   }
 }
 
-void sendData(void) {
-  // Right Arm Motion Data
-  Serial.print("r");
-  Serial.print("/");  //ID right arm
-  Serial.print(qR.w, 4);
-  Serial.print("/");  //Delimiter "/" to distinguish values of individual
-  Serial.print(qR.x, 4);
-  Serial.print("/");
-  Serial.print(qR.y, 4);
-  Serial.print("/");
-  Serial.print(qR.z, 4);
-  Serial.print("/");
-  Serial.print(Enc1R);
-  Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc3R);
-  Serial.print("/");  //Shoulder Yaw
-  Serial.print(Enc2R);
-  Serial.print("/");  //Elbow
-  Serial.print(HallR);
-  Serial.print(";");  //Delimiter ";" to distinguish left and right arm
-
-  // Left Arm Motion Data
-  Serial.print("l");
-  Serial.print("/");  //ID left arm
-  Serial.print(qL.w, 4);
-  Serial.print("/");  //Delimiter "/" to distinguish values of individual
-  Serial.print(qL.x, 4);
-  Serial.print("/");
-  Serial.print(qL.y, 4);
-  Serial.print("/");
-  Serial.print(qL.z, 4);
-  Serial.print("/");
-  Serial.print(Enc1L);
-  Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc3L);
-  Serial.print("/");  //Shoulder Yaw
-  Serial.print(Enc2L);
-  Serial.print("/");      //Elbow
-  Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
-}
-
-void sendData2(void) {
-  // Right Arm Motion Data
-  Serial.print("r");
-  Serial.print("/");  //ID right arm
-  Serial.print(qR.w, 4);
-  Serial.print("/");  //Delimiter "/" to distinguish values of individual
-  Serial.print(qR.x, 4);
-  Serial.print("/");
-  Serial.print(qR.y, 4);
-  Serial.print("/");
-  Serial.print(qR.z, 4);
-  Serial.print("/");
-  Serial.print(Enc1R_inc);
-  Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc2R_inc);
-  Serial.print("/");  //Elbow
-  Serial.print(Enc3R_inc);
-  Serial.print("/");  //Shoulder Yaw
-  Serial.print(HallR);
-  Serial.print(";");  //Delimiter ";" to distinguish left and right arm
-
-  // Left Arm Motion Data
-  Serial.print("l");
-  Serial.print("/");  //ID left arm
-  Serial.print(qL.w, 4);
-  Serial.print("/");  //Delimiter "/" to distinguish values of individual
-  Serial.print(qL.x, 4);
-  Serial.print("/");
-  Serial.print(qL.y, 4);
-  Serial.print("/");
-  Serial.print(qL.z, 4);
-  Serial.print("/");
-  Serial.print(Enc1L_inc);
-  Serial.print("/");  //Shoulder Pitch
-  Serial.print(Enc2L_inc);
-  Serial.print("/");  //Elbow
-  Serial.print(Enc3L_inc);
-  Serial.print("/");      //Shoulder Yaw
-  Serial.println(HallL);  //Delimiter ";" to distinguish left and right arm
-}
-
 void UpdateQuat(Quaternion *q_new, Quaternion *q_old) {
   q_new->w = q_old->w;
   q_new->x = q_old->x;
@@ -892,14 +730,12 @@ void updateArray(float *arr1, float *arr2) {
 
 void updateArray(unsigned int *arr1, unsigned int *arr2) {
   for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
-    //Serial.println(sizeof(arr1) / sizeof(arr1[0]));
     arr1[i] = arr2[i];
   }
 }
 
 void updateArray(int *arr1, int *arr2) {
   for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
-    //Serial.println(sizeof(arr1) / sizeof(arr1[0]));
     arr1[i] = arr2[i];
   }
 }
