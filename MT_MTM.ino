@@ -416,7 +416,6 @@ void loop() {
 #ifdef COMP
   readRawData();
   getDT();
-
   //////////// angles from Accelration
   angleAcX = atan(AcY / sqrt(pow(AcX, 2) + pow(AcZ, 2)));
   angleAcX *= RADIAN_TO_DEGREE;
@@ -433,22 +432,23 @@ void loop() {
   double angleTmpZ = angleFilZ + angleGyZ * dt;
   angleFilX = ALPHA * angleTmpX + (1.0 - ALPHA) * angleAcX;
   angleFilY = ALPHA * angleTmpY + (1.0 - ALPHA) * angleAcY;
-  angleFilZ = angleGyZ;  //
+  angleFilZ = angleGyZ;
 #endif
 
-  //-----------------------Get Encoder Data Right-------------------------------
+  //-----------------------Get Encoder Data RIGHT-------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
     readEncoder(EncR_xn[i], DataPinR[i], CSR[i], CLKR, i);  //Hand over Memory address of EncData and overwrite values
     delayMicroseconds(1);                                   //Tcs waiting for another read in
   }
 
-  //------------------------Get Encoder Data Left-------------------------------
+  //------------------------Get Encoder Data LEFT-------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
     readEncoder(EncL_xn[i], DataPinL[i], CSL[i], CLKL, i);  //Hand over Memory address of EncData and overwrite values
     delayMicroseconds(1);                                   //Tcs waiting for another read in
   }
 
   //--------------Digitla low pas filter on encoder data-------------------------
+  //-----------------------------RIGHT-------------------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataR) / sizeof(EncDataR[0])); i++) {
     //----Overlow detection----
     OverFlowDetection(EncR_xn[i], EncR_xn1[i], rolloverR[i], rollunderR[i], countR[i]);
@@ -464,6 +464,7 @@ void loop() {
     *EncDataR_inc[i] = *EncR_yn[i] + *countR[i] * gain - EncR_OFF[i];
     updateArray(EncDataR[i], EncDataR_inc[i]);
   }
+  //------------------------------LEFT-------------------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
     //----Overlow detection----
     OverFlowDetection(EncL_xn[i], EncL_xn1[i], rolloverL[i], rollunderL[i], countL[i]);
@@ -484,6 +485,9 @@ void loop() {
   HallR = analogRead(HDOR);
   HallL = analogRead(HDOL);
 
+  //----------------------------------------------------------------------------------
+  //----------------------------KINEMATIC CALCULATION---------------------------------
+  //----------------------------------------------------------------------------------
   //-----------------------Convert to real angle values-------------------------------
   q_mtm[0] = double(*EncDataR[0]) * res_mag_enc * PI / 180.0;   //Convert 2 rad
   q_mtm[1] = -double(*EncDataR[2]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
@@ -579,8 +583,8 @@ void loop() {
   q7_m = 1.261157 + (53481730 - 1.261157) / (1 + pow((HallR / 84.42502), 8.110327));
 
   // Remap values to PSM
-  q4_p = q6_m;  //PSM Roll
-  q5_p = q4_m;  //PSM Pitch
+  q4_p = q6_m;   //PSM Roll
+  q5_p = q4_m;   //PSM Pitch
   q6_p = -q5_m;  //PSM Yaw
   q7_p = -2 * (q7_m - 1.37);
 #endif
