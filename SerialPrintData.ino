@@ -266,5 +266,28 @@ void SerialPrintData(int type) {
       Serial.print("\t");
       Serial.println(C_psm[2]);
       break;
+
+      case 14:
+      //Quaternion left arm orientation
+      Serial.print("quat left:\t");
+      Serial.print(qL.w, 4);
+      Serial.print("\t");
+      Serial.print(qL.x, 4);
+      Serial.print("\t");
+      Serial.print(qL.y, 4);
+      Serial.print("\t");
+      Serial.print(qL.z, 4);
+      Serial.print("\t");
+      //Encoder left arm
+      Serial.print(Enc1L);  //Shoulder Pitch
+      Serial.print("\t");
+      Serial.print(Enc2L);  //Elbow
+      Serial.print("\t");
+      Serial.print(Enc3L);  //Shoulder Yaw
+      Serial.print("\t");
+      //Hall left
+      Serial.println(HallL);
+      break;
+
   }
 }

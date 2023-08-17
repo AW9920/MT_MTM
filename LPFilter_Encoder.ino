@@ -12,7 +12,7 @@ float LPFilter_Encoder(unsigned int* xn, unsigned int* xn1, unsigned int* yn1, b
   //=======================================================
   //======            FUNCTION Variables            =======
   //=======================================================
-  float yn;  //Empty container for filtered quaterion
+  float yn = 0;  //Empty container for filtered quaterion
   //bool enable = true;  //Enabling LP Filter (Debugging)
   // coefficients for constant coefficient differential equation
   float a1 = 0.5218;

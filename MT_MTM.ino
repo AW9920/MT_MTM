@@ -1,6 +1,3 @@
-//Define Arduino UNO CPU clock
-#define F_CPU 16000000L
-
 //=======================================================
 //======            Include libraries             =======
 //=======================================================
@@ -227,7 +224,11 @@ double x_p, y_p, z_p;
 double C_psm[3] = { x_p, y_p, z_p };
 const double x_p_init = 0, y_p_init = -56.51, z_p_init = 0;
 double C_psm_init[3] = { x_p_init, y_p_init, z_p_init };
-
+//Transmition container
+double q1_R = 0, q2_R = 0, q3_R = 0, q4_R = 0, q5_R = 0, q6_R = 0, q7_R = 0;
+double q_R[7] = { q1_R, q2_R, q3_R, q4_R, q5_R, q6_R, q7_R };
+double q1_L = 0, q2_L = 0, q3_L = 0, q4_L = 0, q5_L = 0, q6_L = 0, q7_L = 0;
+double q_L[7] = { q1_L, q2_L, q3_L, q4_L, q5_L, q6_L, q7_L };
 //General variables
 const double motion_scaler_x = 0.05;
 const double motion_scaler_y = 0.25;
@@ -245,6 +246,9 @@ double mat1[3][3] = { { -1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, -1.0 } 
 /*---------------------------Hall Sensor variables---------------------------*/
 int HallR;
 int HallL;
+
+/*---------------------------float Array size var----------------------------*/
+int n;
 
 /*----------------------------Other variables--------------------------------*/
 unsigned long currentTime;
@@ -292,10 +296,14 @@ Quaternion LPFilter(Quaternion *qxn, Quaternion *qxn1, Quaternion *qyn1);
 void spikeDetection(Quaternion *qxn, Quaternion *qyn1);
 void UpdateQwF(Quaternion *q, float *q_val);
 float *Quat2floatArr(Quaternion *q);
-void updateArray(float *arr1, float *arr2);
+void updateArray(float *arr1, float *arr2, int n);
+void updateArray(unsigned int *arr1, unsigned int *arr2, int n);
+void updateArray(int *arr1, int *arr2, int n);
 void breakpoint(void);
 void WarmUpIMU(void);
-void sendData(void);
+void sendData_L(double q[7]);
+void sendData_R(double q[7]);
+void KinematicCalc(int *enc_val, Quaternion q, int hall_val, double Q);
 
 //=======================================================
 //======              INITIAL SETUP               =======
@@ -457,12 +465,15 @@ void loop() {
     *EncR_yn[i] = LPFilter_Encoder(EncR_xn[i], EncR_xn1[i], EncR_yn1[i], rolloverR[i], rollunderR[i]);
 
     //Update values
-    updateArray(EncR_xn1[i], EncR_xn[i]);
-    updateArray(EncR_yn1[i], EncR_yn[i]);
+    n = sizeof(EncR_xn1) / sizeof(EncR_xn1[0]);
+    updateArray(EncR_xn1[i], EncR_xn[i], n);
+    n = sizeof(EncR_yn1) / sizeof(EncR_yn1[0]);
+    updateArray(EncR_yn1[i], EncR_yn[i], n);
 
     //Pack processed data into variables send over Serial Bus
     *EncDataR_inc[i] = *EncR_yn[i] + *countR[i] * gain - EncR_OFF[i];
-    updateArray(EncDataR[i], EncDataR_inc[i]);
+    n = sizeof(EncDataR) / sizeof(EncDataR[0]);
+    updateArray(EncDataR[i], EncDataR_inc[i], n);
   }
   //------------------------------LEFT-------------------------------------------
   for (unsigned int i = 0; i < (sizeof(EncDataL) / sizeof(EncDataL[0])); i++) {
@@ -473,12 +484,15 @@ void loop() {
     *EncL_yn[i] = LPFilter_Encoder(EncL_xn[i], EncL_xn1[i], EncL_yn1[i], rolloverL[i], rollunderL[i]);
 
     //Update values
-    updateArray(EncL_xn1[i], EncL_xn[i]);
-    updateArray(EncL_yn1[i], EncL_yn[i]);
+    n = sizeof(EncL_xn1) / sizeof(EncL_xn1[0]);
+    updateArray(EncL_xn1[i], EncL_xn[i], n);
+    n = sizeof(EncL_yn1) / sizeof(EncL_yn1[0]);
+    updateArray(EncL_yn1[i], EncL_yn[i], n);
 
     //Pack processed data into variables send over Serial Bus
     *EncDataL_inc[i] = *EncL_yn[i] + *countL[i] * gain - EncL_OFF[i];
-    updateArray(EncDataL[i], EncDataL_inc[i]);
+    n = sizeof(EncDataL) / sizeof(EncDataL[0]);
+    updateArray(EncDataL[i], EncDataL_inc[i], n);
   }
 
   //---------------------------Get Hall Sensor data-----------------------------------
@@ -488,120 +502,13 @@ void loop() {
   //----------------------------------------------------------------------------------
   //----------------------------KINEMATIC CALCULATION---------------------------------
   //----------------------------------------------------------------------------------
-  //-----------------------Convert to real angle values-------------------------------
-  q_mtm[0] = double(*EncDataR[0]) * res_mag_enc * PI / 180.0;   //Convert 2 rad
-  q_mtm[1] = -double(*EncDataR[2]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
-  q_mtm[2] = -double(*EncDataR[1]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
+  KinematicCalc(EncDataL, qL, HallL, q_L);  // results are written in q_L and q_R
+  //KinematicCalc(EncDataR, qR, HallR, q_R);
 
-  //-----------------------Compute planned trajectory---------------------------------
-  // To-Do: Compute desired position of PSM in task space
-  x_m = L1 * cos(q_mtm[0]) + L2 * cos(q_mtm[0]) * cos(q_mtm[1]) - L3 * cos(q_mtm[0]) * sin(q_mtm[1]) - H1 * sin(q_mtm[0]) * sin(q_mtm[2] - PI / 2) + H1 * cos(q_mtm[0]) * cos(q_mtm[1]) * cos(q_mtm[2] - PI / 2);
-  y_m = L1 * sin(q_mtm[0]) + L2 * cos(q_mtm[1]) * sin(q_mtm[0]) + H1 * cos(q_mtm[0]) * sin(q_mtm[2] - PI / 2) - L3 * sin(q_mtm[0]) * sin(q_mtm[1]) + H1 * cos(q_mtm[1]) * cos(q_mtm[2] - PI / 2) * sin(q_mtm[0]);
-  z_m = L3 * cos(q_mtm[1]) + L2 * sin(q_mtm[1]) + H1 * cos(q_mtm[2] - PI / 2) * sin(q_mtm[1]);
-  C_mtm[0] = x_m;
-  C_mtm[1] = y_m;
-  C_mtm[2] = z_m;
-
-  //Compute trajectory
-  double d_x = x_m - x_m_init;
-  double d_y = y_m - y_m_init;
-  double d_z = z_m - z_m_init;
-  x_p = x_p_init + motion_scaler_x * d_x;
-  y_p = y_p_init + motion_scaler_y * d_y;
-  z_p = z_p_init + motion_scaler_z * d_z;
-
-  //-------------------Compute desired joint values 1, 2 & 3 for PSM---------------------------
-  // To-Do: Conduct inverse Kinematics
-  int sign = 0;
-  if (y_p < 0) {
-    sign = 1;
-  } else if (y_p >= 0) {
-    sign = -1;
-  }
-  //Compute desired q3 of PSM
-  q3_p = sign * sqrt(sq(x_p) + sq(y_p) + sq(z_p)) - d0;
-  //Compute desired q2 of PSM
-  double s2 = -x_p / (d0 + q3_p);
-  double c2 = sqrt(1 - sq(s2));
-  q2_p = atan2(s2, c2);
-  if ((q2_p <= (-PI / 2)) || (q2_p >= (PI / 2))) {
-    q2_p = atan2(s2, -c2);
-  }
-  q2_p *= (180 / PI);
-  //Compute desired q1 of PSM
-  double b = c2 * (q3_p + d0);
-  double a = -b;
-  double c = y_p + z_p;
-  q1_p = atan2(b, a) + atan2(sqrt(sq(a) + sq(b) - sq(c)), c);
-  if ((q1_p <= (-PI / 2)) || (q1_p >= (PI / 2))) {
-    q1_p = atan2(b, a) - atan2(sqrt(sq(a) + sq(b) - sq(c)), c);
-  }
-  q1_p *= (180 / PI);
-
-//-------------------Compute desired joint values 4, 5 & 6 for PSM---------------------------
-#ifdef DMP
-  //Right MTM
-  double s5, c5, s4, c4, s6, c6;
-  quaternionToArray(qR, quatArray);
-  quatToRotMat(quatArray, rotMat);
-  arrayToMatrix(rotMat, mat);
-  matrixMult(mat1, mat, result);
-  s5 = result[2][1];
-  c5 = sqrt(sq(result[0][1]) + sq(result[1][1]));
-  q5_m = atan2(s5, c5);
-  if ((q5_m <= (-PI / 2)) || (q5_m >= (PI / 2))) {
-    q5_m = atan2(s5, -c5);
-  }
-  q5_m *= (180 / PI);
-
-  if (q5_m != 90.0) {
-    s4 = -result[0][1] / c5;
-    c4 = result[1][1] / c5;
-    q4_m = atan2(s4, c4);
-    q4_m *= (180.0 / PI);
-  } else {
-    q4_m = 0.0;
-  }
-
-  if (q5_m == 90.0) {
-    s6 = result[1][0];
-    c6 = result[1][2];
-    q6_m = atan2(s6, c6);
-    q6_m *= (180.0 / PI);
-  } else if (q5_m == -90.0) {
-    s6 = result[1][0];
-    c6 = result[1][2];
-    q6_m = -atan2(s6, c6);
-    q6_m *= (180.0 / PI);
-  } else {
-    s6 = -result[2][0] / c5;
-    c6 = -result[2][2] / c5;
-    q6_m = atan2(s6, c6);
-    q6_m *= (180.0 / PI);
-  }
-
-  q7_m = 1.261157 + (53481730 - 1.261157) / (1 + pow((HallR / 84.42502), 8.110327));
-
-  // Remap values to PSM
-  q4_p = q6_m;   //PSM Roll
-  q5_p = q4_m;   //PSM Pitch
-  q6_p = -q5_m;  //PSM Yaw
-  q7_p = -2 * (q7_m - 1.37);
-#endif
-
+  //SerialPrintData(14);
   //-----------------------Send data over UART---------------------------------
-  String buffer = "";
-  send_time = millis();
-  buffer = compData(q1_p, q2_p, q3_p, q4_p, q5_p, q6_p, q7_p, send_time, 2);
-  //Check if enough bytes are available for writing
-  int dataSize = buffer.length();
-  if (Serial2.availableForWrite() >= dataSize) {
-    Serial2.println(buffer);
-    Serial.println(buffer);
-  } else {
-    Serial.println("Serial2 buffer is full. Data not sent.");
-  }
-
+  sendData_L(q_L); //HardwareSerial2
+  //sendData_R(q_R); //HardwareSerial3
 #ifdef EVAL
   //SerialPrintData(4);
 #endif
@@ -610,7 +517,7 @@ void loop() {
 //=======================================================
 //======               Functions                  =======
 //=======================================================
-String compData(double in_value1, double in_value2, double in_value3, double in_value4, double in_value5, double in_value6, double in_value7, unsigned long time, byte signi) {
+String compData(double in_value1, double in_value2, double in_value3, double in_value4, double in_value5, double in_value6, double in_value7, byte signi) {
   char buffer[81];
   String serialData;
 
@@ -634,9 +541,6 @@ String compData(double in_value1, double in_value2, double in_value3, double in_
   serialData += buffer;
   serialData += ",";
   dtostrf(in_value7, 0, 2, buffer);
-  serialData += buffer;
-  serialData += ",";
-  ltoa(time, buffer, 10);
   serialData += buffer;
   serialData += ">";
 
@@ -725,21 +629,21 @@ void quaternionToArray(Quaternion quat, double arr[4]) {
   arr[3] = quat.w;
 }
 
-void updateArray(float *arr1, float *arr2) {
-  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+void updateArray(float *arr1, float *arr2, int numEl) {
+  for (int i = 0; i < numEl; i++) {
     // Serial.println(sizeof(arr1) / sizeof(arr1[0]));
     arr1[i] = arr2[i];
   }
 }
 
-void updateArray(unsigned int *arr1, unsigned int *arr2) {
-  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+void updateArray(unsigned int *arr1, unsigned int *arr2, int numEl) {
+  for (int i = 0; i < numEl; i++) {
     arr1[i] = arr2[i];
   }
 }
 
-void updateArray(int *arr1, int *arr2) {
-  for (int i = 0; i < (sizeof(arr1) / sizeof(arr1[0])); i++) {
+void updateArray(int *arr1, int *arr2, int numEl) {
+  for (int i = 0; i < numEl; i++) {
     arr1[i] = arr2[i];
   }
 }
@@ -752,60 +656,8 @@ void breakpoint(void) {
   while (Serial.available() && Serial.read()) {};  // empty buffer again
 }
 
-void serialFlush() {
-  Serial.flush();
-  while (Serial.available() > 0) {
-    char t = Serial.read();
-  }
-}
-
 void getDT() {  // loop cycle time calculation
   now = millis();
   dt = (now - past) / 1000.0;
   past = now;
-}
-
-void Initcalib() {  // 10 time averaging  - initialization
-  double sumAcX = 0, sumAcY = 0, sumAcZ = 0;
-  double sumGyX = 0, sumGyY = 0, sumGyZ = 0;
-  readRawData();
-  for (int i = 0; i < 10; i++) {
-    readRawData();
-    sumAcX += AcX;
-    sumAcY += AcY;
-    sumAcZ += AcZ;
-    sumGyX += GyX;
-    sumGyY += GyY;
-    sumGyZ += GyZ;
-    delay(50);
-  }
-  averAcX = sumAcX / 10;
-  averAcY = sumAcY / 10;
-  averAcZ = sumAcY / 10;
-  averGyX = sumGyX / 10;
-  averGyY = sumGyY / 10;
-  averGyZ = sumGyZ / 10;
-}
-
-void initSensor() {
-  Wire.begin();
-  Wire.beginTransmission(MPU_ADDR_R);  // I2C address
-  Wire.write(0x6B);                    // Power Management Register 107, starting communication
-  Wire.write(0);                       // wakes up the MPU-6050
-  Wire.endTransmission(true);
-}
-
-void readRawData() {
-  Wire.beginTransmission(MPU_ADDR_R);
-  Wire.write(0x3B);  // AcX address
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU_ADDR_R, 14, true);  // 14 Byte after AcX address
-
-  AcX = Wire.read() << 8 | Wire.read();  //Merging 2 Bytes by OR operator and the shift operators
-  AcY = Wire.read() << 8 | Wire.read();
-  AcZ = Wire.read() << 8 | Wire.read();
-  Tmp = Wire.read() << 8 | Wire.read();
-  GyX = Wire.read() << 8 | Wire.read();
-  GyY = Wire.read() << 8 | Wire.read();
-  GyZ = Wire.read() << 8 | Wire.read();
 }

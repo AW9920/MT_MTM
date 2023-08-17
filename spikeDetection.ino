@@ -60,7 +60,8 @@ Quaternion spikeDetection(Quaternion* qxn, Quaternion* qyn1, float* d, int j) {
 
   UpdateQwF(qyn1, yn1);
 
-  updateArray(d, dif);
+  n = sizeof(dif) / sizeof(dif[0]);
+  updateArray(d, dif, n);
 
   return q;
 }
