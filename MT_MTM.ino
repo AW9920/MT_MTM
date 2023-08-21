@@ -303,7 +303,8 @@ void breakpoint(void);
 void WarmUpIMU(void);
 void sendData_L(double q[7]);
 void sendData_R(double q[7]);
-void KinematicCalc(int *enc_val, Quaternion q, int hall_val, double Q);
+void KinematicCalc_R(int *enc_val, Quaternion q, int hall_val, double Q);
+void KinematicCalc_L(int *enc_val, Quaternion q, int hall_val, double Q);
 
 //=======================================================
 //======              INITIAL SETUP               =======
@@ -356,6 +357,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) {};
   Serial2.begin(115200);
+  Serial3.begin(115200);
 
 #ifdef DMP
   //Setup IMUs
@@ -502,8 +504,8 @@ void loop() {
   //----------------------------------------------------------------------------------
   //----------------------------KINEMATIC CALCULATION---------------------------------
   //----------------------------------------------------------------------------------
-  KinematicCalc(EncDataL, qL, HallL, q_L);  // results are written in q_L and q_R
-  //KinematicCalc(EncDataR, qR, HallR, q_R);
+  KinematicCalc_R(EncDataR, qR, HallR, q_R);
+  KinematicCalc_L(EncDataL, qL, HallL, q_L);  // results are written in q_L and q_R
 
   //SerialPrintData(14);
   //-----------------------Send data over UART---------------------------------

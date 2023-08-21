@@ -1,4 +1,4 @@
-void KinematicCalc(int *enc_val[], Quaternion q, int hall_val, double Q[]) {
+void KinematicCalc_R(int *enc_val[], Quaternion q, int hall_val, double Q[]) {
   q_mtm[0] = double(*enc_val[0]) * res_mag_enc * PI / 180.0;   //Convert 2 rad
   q_mtm[1] = -double(*enc_val[2]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
   q_mtm[2] = -double(*enc_val[1]) * res_mag_enc * PI / 180.0;  //Convert 2 rad
