@@ -5,7 +5,7 @@ void sendData_L(double q[7]){
   int dataSize = buffer.length();
   if (Serial2.availableForWrite() >= dataSize) {
     Serial2.println(buffer);
-    //Serial.println(buffer);
+    Serial.println(buffer);
     //Serial.println(buffer);
   } else {
     Serial.println("Serial2 buffer is full. Data not sent.");
